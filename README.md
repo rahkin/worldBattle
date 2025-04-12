@@ -66,6 +66,12 @@ A 3D vehicle combat game built with Three.js and CANNON.js.
 - Boost capability
 - Excellent handling
 - Lower durability
+- Dual front-mounted machine guns:
+  - Fast fire rate (100ms between shots)
+  - Low damage per shot (15 damage)
+  - Speed-based spread accuracy
+  - Red tracer rounds
+  - Muzzle flash effects
 
 ### Scorpion
 - Lightweight and fast
@@ -219,6 +225,10 @@ src/
 - Improved HUD display with respawn counter
 - Fixed vehicle cleanup during respawn
 - Enhanced explosion effects and particle systems
+- Added dual machine gun system to Muscle Car
+- Implemented projectile system with tracer rounds
+- Added muzzle flash effects
+- Added speed-based weapon spread
 
 ### Getting Started
 

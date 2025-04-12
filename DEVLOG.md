@@ -4,6 +4,17 @@
 
 ### Recent Updates (April 2025)
 
+### 2025-04-14
+- Added dual machine gun system to Muscle Car:
+  - Front-mounted chrome barrels with black bodies
+  - Fast-firing rate (100ms between shots)
+  - Low damage per shot (15 damage)
+  - Speed-based spread for dynamic accuracy
+  - Red tracer rounds for better visibility
+  - Orange muzzle flash effects
+  - Proper projectile system integration
+  - Input handling with left mouse button
+
 ### 2025-04-13
 - Added vehicle recovery system
   - Press T to reset vehicle position and orientation

@@ -3,9 +3,10 @@ import { BaseCar } from './BaseCar.js';
 import { VehicleGeometryFactory } from '../../utils/GeometryUtils.js';
 import { CapsuleGeometry } from 'three';
 import { CylinderGeometry } from 'three';
+import { ProjectileSystem } from '../../physics/ProjectileSystem.js';
 
 export class MuscleCar extends BaseCar {
-    constructor(world, scene) {
+    constructor(world, scene, game) {
         const options = {
             width: 1.2,
             height: 0.5,
@@ -23,15 +24,42 @@ export class MuscleCar extends BaseCar {
             dampingRelaxation: 2.5,
             dampingCompression: 4.4,
             maxSuspensionForce: 100000,
-            maxSuspensionTravel: 0.3
+            maxSuspensionTravel: 0.3,
+            // Weapon system properties
+            weaponDamage: 15,
+            weaponFireRate: 100, // ms between shots
+            weaponSpread: 0.02,
+            weaponRange: 800,
+            weaponProjectileSpeed: 200
         };
         super(world, scene, options);
+
+        this.game = game;
+
+        // Initialize projectile system if game is available
+        if (game && game.cameraManager && game.cameraManager.camera) {
+            this.projectileSystem = new ProjectileSystem(world, scene, game.cameraManager.camera, {
+                projectileSize: 0.1,  // Small bullets
+                projectileColor: 0xFF0000  // Red tracer rounds
+            });
+        } else {
+            console.warn('Game or camera not available, weapon system will be disabled');
+            this.projectileSystem = null;
+        }
+
+        // Initialize weapon system
+        this.lastFireTime = 0;
+        this.isFiring = false;
+        this.weaponMeshes = [];
 
         // Override chassis mesh with detailed muscle car body
         this._createDetailedChassis();
         
         // Add muscle car specific features
         this._addMuscleCarFeatures();
+        
+        // Add weapon system
+        this._createWeaponSystem();
         
         // Enhance wheels after everything else is set up
         this._enhanceWheels();
@@ -213,6 +241,175 @@ export class MuscleCar extends BaseCar {
         const diffuser = new THREE.Mesh(diffuserGeo, diffuserMat);
         diffuser.position.set(0, this.options.height * 0.25, this.options.length * 0.85);
         this.chassisMesh.add(diffuser);
+    }
+
+    _createWeaponSystem() {
+        const chromeMaterial = VehicleGeometryFactory.createMetalMaterial(0xCCCCCC);
+        const blackMaterial = VehicleGeometryFactory.createMatteMetalMaterial(0x111111);
+
+        // Create weapon group
+        this.weaponGroup = new THREE.Group();
+        
+        // Left machine gun
+        const leftGun = this._createMachineGun(chromeMaterial, blackMaterial);
+        leftGun.position.set(-0.3, this.options.height * 0.5, -this.options.length * 0.9);
+        this.weaponGroup.add(leftGun);
+        this.weaponMeshes.push(leftGun);
+
+        // Right machine gun
+        const rightGun = this._createMachineGun(chromeMaterial, blackMaterial);
+        rightGun.position.set(0.3, this.options.height * 0.5, -this.options.length * 0.9);
+        this.weaponGroup.add(rightGun);
+        this.weaponMeshes.push(rightGun);
+
+        // Add weapon group to chassis before adding to scene
+        this.chassisMesh.add(this.weaponGroup);
+    }
+
+    _createMachineGun(chromeMaterial, blackMaterial) {
+        const gunGroup = new THREE.Group();
+
+        // Main barrel (25% longer)
+        const barrelGeo = new THREE.CylinderGeometry(0.06, 0.06, 1.25, 16);
+        barrelGeo.rotateX(Math.PI / 2); // Rotate barrel to point forward
+        const barrel = new THREE.Mesh(barrelGeo, chromeMaterial);
+        barrel.position.z = -0.625; // Move barrel forward half its length
+        gunGroup.add(barrel);
+
+        // Gun body (larger and more visible)
+        const bodyGeo = new THREE.BoxGeometry(0.15, 0.15, 0.3);
+        const body = new THREE.Mesh(bodyGeo, blackMaterial);
+        gunGroup.add(body);
+
+        // Ammo drum (larger and more visible)
+        const drumGeo = new THREE.CylinderGeometry(0.12, 0.12, 0.2, 16);
+        drumGeo.rotateZ(Math.PI / 2); // Rotate drum to be horizontal
+        const drum = new THREE.Mesh(drumGeo, chromeMaterial);
+        drum.position.z = 0.2; // Position behind the body
+        gunGroup.add(drum);
+
+        return gunGroup;
+    }
+
+    fireWeapon() {
+        if (!this.projectileSystem) {
+            console.warn('Cannot fire: projectile system not initialized');
+            return;
+        }
+
+        const currentTime = Date.now();
+        if (currentTime - this.lastFireTime < this.options.weaponFireRate) {
+            return;
+        }
+
+        this.lastFireTime = currentTime;
+
+        // Calculate firing positions for both guns
+        this.weaponMeshes.forEach((gunMesh, index) => {
+            // Get the barrel tip position (front of the gun)
+            const barrelTip = new THREE.Vector3(0, 0, -1.25); // Full barrel length forward
+            
+            // Transform to world space
+            const worldPosition = barrelTip.clone();
+            worldPosition.applyMatrix4(gunMesh.matrixWorld);
+
+            // Calculate firing direction
+            const direction = new THREE.Vector3(0, 0, -1); // Forward direction
+            direction.applyQuaternion(this.chassisMesh.quaternion);
+            
+            // Add spread based on vehicle speed
+            const speedFactor = Math.min(this._vehicle.chassisBody.velocity.length() / 20, 1);
+            const spread = this.options.weaponSpread * (1 + speedFactor);
+            
+            direction.x += (Math.random() - 0.5) * spread;
+            direction.y += (Math.random() - 0.5) * spread;
+            direction.normalize();
+
+            // Debug visualization of barrel tip
+            console.log('Firing from barrel:', {
+                gunIndex: index,
+                position: worldPosition.toArray(),
+                direction: direction.toArray(),
+                spread: spread
+            });
+
+            // Create projectile using ProjectileSystem
+            this.projectileSystem.createProjectile(
+                worldPosition,
+                direction,
+                this.options.weaponProjectileSpeed,
+                this.options.weaponDamage
+            );
+
+            // Create muzzle flash at barrel tip
+            this._createMuzzleFlash(worldPosition, direction);
+        });
+    }
+
+    _createMuzzleFlash(position, direction) {
+        const flashGroup = new THREE.Group();
+        this.scene.add(flashGroup);
+
+        // Main flash
+        const flashGeo = new THREE.CylinderGeometry(0.1, 0.2, 0.3, 8);
+        flashGeo.rotateX(Math.PI / 2);
+        const flashMat = new THREE.MeshBasicMaterial({
+            color: 0xFF6600,
+            transparent: true,
+            opacity: 0.8
+        });
+        const flash = new THREE.Mesh(flashGeo, flashMat);
+        flashGroup.add(flash);
+
+        // Position and orient flash
+        flashGroup.position.copy(position);
+        flashGroup.lookAt(position.clone().add(direction));
+
+        // Animate and remove flash
+        const duration = 100; // ms
+        const startTime = Date.now();
+        
+        const animateFlash = () => {
+            const elapsed = Date.now() - startTime;
+            const progress = elapsed / duration;
+            
+            if (progress >= 1) {
+                this.scene.remove(flashGroup);
+                return;
+            }
+
+            flash.scale.set(1 - progress, 1 - progress, 1 - progress);
+            flashMat.opacity = 0.8 * (1 - progress);
+            
+            requestAnimationFrame(animateFlash);
+        };
+
+        animateFlash();
+    }
+
+    update(deltaTime) {
+        if (!this.vehicle) return;  // Skip if vehicle not ready
+        
+        super.update(deltaTime);
+        
+        // Update projectile system
+        if (this.projectileSystem) {
+            this.projectileSystem.update(deltaTime);
+        }
+
+        // Handle firing input with mouse
+        if (this.inputManager && this.inputManager.isMouseButtonPressed(0)) { // Left mouse button
+            this.fireWeapon();
+        }
+    }
+
+    _setupControls() {
+        // Add firing control to input manager
+        if (this.inputManager) {
+            this.inputManager.addMouseButtonListener(0, () => { // Left mouse button
+                this.fireWeapon();
+            });
+        }
     }
 
     updateVisuals() {

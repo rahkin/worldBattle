@@ -14,6 +14,14 @@
   - Orange muzzle flash effects
   - Proper projectile system integration
   - Input handling with left mouse button
+- Added dual plasma cannon system to Scorpion
+  - Implemented fast-firing energy weapons (150ms between shots)
+  - Added cyan energy projectiles with trails
+  - Implemented dynamic spread based on vehicle speed
+  - Added energy burst effects on firing
+  - Integrated with projectile system
+  - Added proper input handling with left mouse button
+  - Positioned cannons for optimal visibility and firing angle
 
 ### 2025-04-13
 - Added vehicle recovery system
@@ -22,6 +30,11 @@
   - 3-second cooldown between recoveries
   - Automatic ground detection for safe repositioning
   - Preserves vehicle physics properties
+- Implemented vehicle recovery system
+  - Added recovery key (R) functionality
+  - Implemented recovery animation
+  - Added recovery cooldown
+  - Added visual feedback for recovery state
 
 ### 2025-04-12
 - Added 10-second respawn countdown timer
@@ -32,6 +45,12 @@
 - Implemented proper HUD health display using HTML/CSS
 - Removed 3D health bar from scene
 - Added damage testing environment
+- Added vehicle selection system
+  - Implemented vehicle selector UI
+  - Added vehicle stats display
+  - Added vehicle preview
+  - Implemented vehicle switching
+  - Added vehicle respawn functionality
 
 ### 2025-04-11
 - Fixed wheel rotation issues across all vehicles
@@ -39,6 +58,12 @@
 - Improved wheel geometry and materials
 - Enhanced vehicle visual features and materials
 - Fixed Scorpion wheel initialization bug
+- Implemented health system
+  - Added health display
+  - Implemented damage calculation
+  - Added vehicle destruction
+  - Added respawn countdown
+  - Added health regeneration
 
 ### 2025-04-10
 - Implemented smooth engine force application
@@ -46,6 +71,12 @@
 - Improved vehicle controls and physics
 - Fixed braking system to prevent flipping
 - Added camera effects for boost and braking
+- Added debug visualization
+  - Implemented physics debug view
+  - Added vehicle stats display
+  - Added performance metrics
+  - Added collision visualization
+  - Added raycast visualization
 
 ### 2025-04-09
 - Initial project setup
@@ -53,6 +84,12 @@
 - Core game loop and rendering system
 - Vehicle selection system
 - Basic camera controls
+- Implemented basic vehicle physics
+  - Added wheel suspension
+  - Implemented vehicle movement
+  - Added collision detection
+  - Implemented vehicle rotation
+  - Added basic vehicle controls
 
 ### 2025-04-08
 - Added interactive ramps for jumps
@@ -60,12 +97,12 @@
 - Enhanced ground terrain
 - Improved collision detection
 - Added debug visualization for physics
-
-### 2025-04-07
-- Project initialization
-- Basic Three.js and Cannon.js integration
-- Core game systems setup
-- Basic vehicle implementation
+- Set up project structure
+  - Initialized Three.js and Cannon.js
+  - Set up Webpack configuration
+  - Added basic scene setup
+  - Implemented camera controls
+  - Added basic lighting
 
 ### System Updates
 

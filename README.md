@@ -78,6 +78,13 @@ A 3D vehicle combat game built with Three.js and CANNON.js.
 - Agile handling
 - Lower durability
 - High maneuverability
+- Dual plasma cannons
+  - Fast fire rate (150ms between shots)
+  - Medium damage (20 per shot)
+  - High projectile speed (250 units/s)
+  - Cyan energy projectiles with trails
+  - Dynamic spread based on vehicle speed
+  - Energy burst effects on firing
 
 ### Drone
 - Futuristic hover vehicle
@@ -229,6 +236,19 @@ src/
 - Implemented projectile system with tracer rounds
 - Added muzzle flash effects
 - Added speed-based weapon spread
+- Added dual plasma cannon system to Scorpion
+  - Fast-firing energy weapons
+  - Cyan energy projectiles with trails
+  - Dynamic spread based on vehicle speed
+  - Energy burst effects on firing
+- Implemented projectile system with energy trails
+- Added muzzle flash and energy burst effects
+- Enhanced vehicle damage system
+- Added vehicle respawn functionality
+- Improved explosion effects and particle systems
+- Added vehicle selection UI
+- Implemented health display system
+- Added debug visualization tools
 
 ### Getting Started
 

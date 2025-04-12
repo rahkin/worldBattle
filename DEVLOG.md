@@ -2,6 +2,35 @@
 
 ## Vehicle Physics Implementation
 
+### 2024-03-22 - Vehicle Control and Physics Improvements
+
+#### Control System Refinements
+- Fixed inverted forward/reverse controls
+- Corrected steering direction
+- Adjusted camera position to view from front of vehicle
+- Enhanced wheel contact detection stability
+
+#### Physics Parameter Updates
+```javascript
+const wheelOptions = {
+    radius: 0.4,
+    directionLocal: new CANNON.Vec3(0, -1, 0),    // Suspension direction: down
+    suspensionStiffness: 50,                       // Increased for better stability
+    suspensionRestLength: 0.4,                     // Increased for more travel
+    frictionSlip: 5,                               // Reduced to prevent sticking
+    dampingRelaxation: 2.3,
+    dampingCompression: 4.4,
+    maxSuspensionForce: 100000,
+    rollInfluence: 0.01,
+    axleLocal: new CANNON.Vec3(1, 0, 0),          // Corrected axle direction
+};
+```
+
+#### Wheel Position Adjustments
+- Moved wheel positions to neutral height (Y: 0)
+- Corrected wheel positions relative to chassis
+- Improved wheel contact detection stability
+
 ### 2024-03-XX - Initial Vehicle Setup
 
 #### Vehicle Factory Implementation

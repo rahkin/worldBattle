@@ -99,4 +99,47 @@ A multiplayer vehicle combat game set in real-world cities with dynamic weather 
 - CANNON.js for physics
 - Vite for development and building
 - Mapbox for real-world map data
-- WebSocket for multiplayer functionality 
+- WebSocket for multiplayer functionality
+
+## Vehicle Types
+
+### Tank
+- Heavy military vehicle with rotating turret and tracks
+- Mass: 2000 units
+- High durability, slower movement
+- Features: Rotating turret, gun barrel, tank tracks
+- Color: Dark olive green
+
+### Ironclad
+- Heavily armored battle vehicle
+- Mass: 1500 units
+- High durability, moderate speed
+- Features: Reinforced armor plating on front and sides
+- Color: Brown
+
+### Muscle Car
+- Classic high-performance vehicle
+- Mass: 800 units
+- Balanced weight and performance
+- Features: Boost capability, powerful engine
+- Color: Green
+
+### Scorpion
+- Light and agile racing vehicle
+- Mass: 400 units
+- High speed, lower durability
+- Features: Aerodynamic spoiler and side skirts
+- Color: Orange-red
+
+### Drone
+- Futuristic hover vehicle
+- Mass: 300 units
+- Extremely light and agile
+- Features: Hover engines, energy core, emissive effects
+- Color: Deep sky blue
+
+## Recent Updates
+- Rebalanced vehicle masses for more realistic physics
+- Adjusted vehicle handling characteristics
+- Fixed tank turret orientation
+- Added visual improvements to all vehicles 

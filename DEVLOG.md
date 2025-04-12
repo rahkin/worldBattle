@@ -108,4 +108,38 @@ vehicle.wheelInfos.forEach((wheelInfo, i) => {
 3. Physics Refinements
    - Add air resistance
    - Implement terrain interaction
-   - Add collision response improvements 
+   - Add collision response improvements
+
+## 2024-03-22: Vehicle Mass Rebalancing and Improvements
+
+### Vehicle Mass Rebalancing
+- Implemented a more realistic mass hierarchy for all vehicles:
+  - Tank: 2000 units (Heaviest, military-grade armor)
+  - Ironclad: 1500 units (Heavy armor plating)
+  - Muscle Car: 800 units (Balanced performance)
+  - Scorpion: 400 units (Light and agile)
+  - Drone: 300 units (Ultra-light construction)
+
+### Physics Adjustments
+- Adjusted vehicle handling characteristics based on new mass values
+- Fine-tuned suspension and friction parameters for each vehicle type
+- Improved vehicle stability and collision response
+
+### Visual Improvements
+- Fixed tank turret orientation issue
+- Refined visual features for each vehicle:
+  - Tank: Rotating turret, tracks, and barrel
+  - Ironclad: Reinforced armor plating
+  - Muscle Car: Performance styling
+  - Scorpion: Aerodynamic elements
+  - Drone: Hover engines and energy core
+
+### Technical Details
+- Mass values now properly reflect vehicle roles and characteristics
+- Each vehicle maintains unique handling properties despite mass changes
+- Improved physics simulation accuracy with balanced mass distribution
+
+### Next Steps
+- Further testing of vehicle performance with new mass values
+- Fine-tune vehicle-specific abilities based on mass characteristics
+- Consider adding mass-dependent gameplay mechanics 

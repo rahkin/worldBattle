@@ -5,6 +5,8 @@ import { InputManager } from './InputManager.js';
 import { CameraManager } from '../rendering/CameraManager.js';
 import { GameLoop } from './GameLoop.js';
 import { DebugManager } from './DebugManager.js';
+import { VehicleSelector } from '../rendering/VehicleSelector.js';
+import { JumpRamp } from '../physics/objects/JumpRamp.js';
 
 export class Game {
     constructor() {
@@ -17,11 +19,15 @@ export class Game {
         
         this.vehicleFactory = null;
         this.playerVehicle = null;
+        this.jumpRamp = null;
         
         // Force and boost tracking
         this.currentEngineForce = 0; // Smooth force application
         this.boostTimer = 0;
         this.boostCooldown = 0;
+
+        // Vehicle selection
+        this.vehicleSelector = null;
     }
 
     async init() {
@@ -42,12 +48,24 @@ export class Game {
             console.log('Creating vehicle factory...');
             this.vehicleFactory = new VehicleFactory(this.physicsWorld.world, this.sceneManager.scene);
             
-            // Create player vehicle
+            // Create initial vehicle
             console.log('Creating player vehicle...');
-            this.playerVehicle = await this.vehicleFactory.createMuscleCar({ x: 0, y: 2, z: 0 });
+            this.playerVehicle = this.vehicleFactory.createVehicle('muscle');
+
+            // Create jump ramp
+            console.log('Creating jump ramp...');
+            this.jumpRamp = new JumpRamp(this.physicsWorld.world, this.sceneManager.scene, {
+                width: 4,
+                height: 2,
+                length: 6,
+                position: { x: 0, y: 0, z: 15 }  // Place the ramp 15 units ahead
+            });
 
             console.log('Initializing camera...');
-            this.cameraManager.init(this.sceneManager.scene, this.playerVehicle);
+            this.cameraManager.init(this.sceneManager.scene);
+            if (this.playerVehicle) {
+                this.cameraManager.setTarget(this.playerVehicle);
+            }
             
             // Start game loop
             console.log('Starting game loop...');
@@ -60,6 +78,10 @@ export class Game {
                 loadingScreen.style.display = 'none';
             }
             console.log('Game ready!');
+
+            // Initialize vehicle selector
+            this.vehicleSelector = new VehicleSelector(this);
+            this.vehicleSelector.show();
         } catch (error) {
             console.error('Failed to initialize game:', error);
             const loadingScreen = document.getElementById('loading-screen');
@@ -90,17 +112,23 @@ export class Game {
             this.debugManager.update();
         }
         
+        // Update jump ramp if needed
+        if (this.jumpRamp) {
+            this.jumpRamp.update();
+        }
+        
         // Render scene
         this.sceneManager.render(this.cameraManager.camera);
     }
 
     handleInput(deltaTime) {
-        if (!this.playerVehicle) return;
+        if (!this.playerVehicle || !this.playerVehicle.vehicle) return;
 
+        const vehicle = this.playerVehicle.vehicle; // Easier access
         const maxSteerVal = 0.5;
         const normalForce = 1800;
-        const boostForce = 2200; // Lowered from 2800 to reduce spin
-        const reverseForce = 400;
+        const boostForce = 2200;
+        const reverseForce = 800;
         const brakeForce = 100;
 
         const forwardKey = this.inputManager.isKeyPressed('KeyW');
@@ -110,67 +138,95 @@ export class Game {
         const brakeKey = this.inputManager.isKeyPressed('Space');
         const boostKey = this.inputManager.isKeyPressed('ShiftLeft') || this.inputManager.isKeyPressed('ShiftRight');
 
-        // 🔥 BOOST SYSTEM
-        const BOOST_DURATION = 2;    // seconds
-        const COOLDOWN_DURATION = 5; // seconds
+        const BOOST_DURATION = 2;
+        const COOLDOWN_DURATION = 5;
 
         const canBoost = this.boostCooldown <= 0 && this.boostTimer <= 0;
 
         if (boostKey && canBoost) {
             this.boostTimer = BOOST_DURATION;
             this.boostCooldown = COOLDOWN_DURATION;
-
-            // Optional camera FX
             if (this.cameraManager.controller?.triggerKickback) {
                 this.cameraManager.controller.triggerKickback(10);
             }
         }
 
-        // Tick timers
         if (this.boostTimer > 0) this.boostTimer -= deltaTime;
         if (this.boostCooldown > 0) this.boostCooldown -= deltaTime;
 
         const isBoosting = this.boostTimer > 0;
-
-        // 🧭 Reset brakes
-        for (let i = 0; i < 4; i++) {
-            this.playerVehicle.setBrake(0, i);
-        }
-
-        // 🔁 Steering
-        if (leftKey) {
-            this.playerVehicle.setSteeringValue(maxSteerVal, 0);
-            this.playerVehicle.setSteeringValue(maxSteerVal, 1);
-        } else if (rightKey) {
-            this.playerVehicle.setSteeringValue(-maxSteerVal, 0);
-            this.playerVehicle.setSteeringValue(-maxSteerVal, 1);
-        } else {
-            this.playerVehicle.setSteeringValue(0, 0);
-            this.playerVehicle.setSteeringValue(0, 1);
-        }
-
-        // 🎯 Smooth engine force
-        const targetForce = isBoosting ? -boostForce : -normalForce;
+        const targetForce = isBoosting ? boostForce : normalForce;
         this.currentEngineForce += (targetForce - this.currentEngineForce) * 5 * deltaTime;
 
-        if (forwardKey) {
-            this.playerVehicle.applyEngineForce(this.currentEngineForce, 2);
-            this.playerVehicle.applyEngineForce(this.currentEngineForce, 3);
-        } else if (backwardKey) {
-            this.playerVehicle.applyEngineForce(reverseForce, 2);
-            this.playerVehicle.applyEngineForce(reverseForce, 3);
-        } else {
-            this.playerVehicle.applyEngineForce(0, 2);
-            this.playerVehicle.applyEngineForce(0, 3);
+        // Reset brakes and force
+        for (let i = 0; i < 4; i++) {
+            vehicle.setBrake(0, i);
+            vehicle.applyEngineForce(0, i);
         }
 
-        // 🛑 Braking
+        // Steering
+        if (leftKey) {
+            vehicle.setSteeringValue(maxSteerVal, 0); // front left
+            vehicle.setSteeringValue(maxSteerVal, 1); // front right
+        } else if (rightKey) {
+            vehicle.setSteeringValue(-maxSteerVal, 0);
+            vehicle.setSteeringValue(-maxSteerVal, 1);
+        } else {
+            vehicle.setSteeringValue(0, 0);
+            vehicle.setSteeringValue(0, 1);
+        }
+
+        // Forward / reverse
+        const isForward = forwardKey;
+        const isBackward = backwardKey;
+
+        // Apply engine force to rear wheels
+        if (isForward) {
+            vehicle.applyEngineForce(normalForce, 0); // Rear left
+            vehicle.applyEngineForce(normalForce, 1); // Rear right
+        } else if (isBackward) {
+            vehicle.applyEngineForce(-normalForce, 0); // Rear left
+            vehicle.applyEngineForce(-normalForce, 1); // Rear right
+        } else {
+            vehicle.applyEngineForce(0, 0);
+            vehicle.applyEngineForce(0, 1);
+        }
+
+        // Braking
         if (brakeKey) {
-            this.playerVehicle.applyEngineForce(reverseForce, 2);
-            this.playerVehicle.applyEngineForce(reverseForce, 3);
+            for (let i = 0; i < 4; i++) {
+                vehicle.setBrake(brakeForce, i);
+            }
             if (this.cameraManager.controller?.triggerShake) {
                 this.cameraManager.controller.triggerShake(0.2, 0.08);
             }
+        }
+    }
+
+    selectVehicle(vehicleId) {
+        if (this.playerVehicle) {
+            // Remove existing vehicle from scene
+            if (this.playerVehicle.chassisMesh) {
+                this.sceneManager.scene.remove(this.playerVehicle.chassisMesh);
+            }
+            if (this.playerVehicle.wheelMeshes) {
+                this.playerVehicle.wheelMeshes.forEach(wheel => {
+                    this.sceneManager.scene.remove(wheel);
+                });
+            }
+            // Remove physics body
+            if (this.playerVehicle.vehicle) {
+                this.physicsWorld.world.removeBody(this.playerVehicle.vehicle.chassisBody);
+            }
+            this.vehicleFactory.removeVehicle(this.playerVehicle);
+        }
+
+        // Create new vehicle
+        this.playerVehicle = this.vehicleFactory.createVehicle(vehicleId);
+        
+        // Reset camera to follow new vehicle
+        if (this.playerVehicle) {
+            this.cameraManager.setTarget(this.playerVehicle);
         }
     }
 } 

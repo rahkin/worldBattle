@@ -17,6 +17,11 @@ export class Game {
         
         this.vehicleFactory = null;
         this.playerVehicle = null;
+        
+        // Force and boost tracking
+        this.currentEngineForce = 0; // Smooth force application
+        this.boostTimer = 0;
+        this.boostCooldown = 0;
     }
 
     async init() {
@@ -93,14 +98,50 @@ export class Game {
         if (!this.playerVehicle) return;
 
         const maxSteerVal = 0.5;
-        const maxForce = 1800;
-        const brakeForce = 1000000;
+        const normalForce = 1800;
+        const boostForce = 2200; // Lowered from 2800 to reduce spin
+        const reverseForce = 400;
+        const brakeForce = 100;
 
-        // Steering
-        if (this.inputManager.isKeyPressed('KeyA')) {
+        const forwardKey = this.inputManager.isKeyPressed('KeyW');
+        const backwardKey = this.inputManager.isKeyPressed('KeyS');
+        const leftKey = this.inputManager.isKeyPressed('KeyA');
+        const rightKey = this.inputManager.isKeyPressed('KeyD');
+        const brakeKey = this.inputManager.isKeyPressed('Space');
+        const boostKey = this.inputManager.isKeyPressed('ShiftLeft') || this.inputManager.isKeyPressed('ShiftRight');
+
+        // 🔥 BOOST SYSTEM
+        const BOOST_DURATION = 2;    // seconds
+        const COOLDOWN_DURATION = 5; // seconds
+
+        const canBoost = this.boostCooldown <= 0 && this.boostTimer <= 0;
+
+        if (boostKey && canBoost) {
+            this.boostTimer = BOOST_DURATION;
+            this.boostCooldown = COOLDOWN_DURATION;
+
+            // Optional camera FX
+            if (this.cameraManager.controller?.triggerKickback) {
+                this.cameraManager.controller.triggerKickback(10);
+            }
+        }
+
+        // Tick timers
+        if (this.boostTimer > 0) this.boostTimer -= deltaTime;
+        if (this.boostCooldown > 0) this.boostCooldown -= deltaTime;
+
+        const isBoosting = this.boostTimer > 0;
+
+        // 🧭 Reset brakes
+        for (let i = 0; i < 4; i++) {
+            this.playerVehicle.setBrake(0, i);
+        }
+
+        // 🔁 Steering
+        if (leftKey) {
             this.playerVehicle.setSteeringValue(maxSteerVal, 0);
             this.playerVehicle.setSteeringValue(maxSteerVal, 1);
-        } else if (this.inputManager.isKeyPressed('KeyD')) {
+        } else if (rightKey) {
             this.playerVehicle.setSteeringValue(-maxSteerVal, 0);
             this.playerVehicle.setSteeringValue(-maxSteerVal, 1);
         } else {
@@ -108,29 +149,28 @@ export class Game {
             this.playerVehicle.setSteeringValue(0, 1);
         }
 
-        // Acceleration
-        if (this.inputManager.isKeyPressed('KeyW')) {
-            this.playerVehicle.applyEngineForce(-maxForce, 2);
-            this.playerVehicle.applyEngineForce(-maxForce, 3);
-        } else if (this.inputManager.isKeyPressed('KeyS')) {
-            this.playerVehicle.applyEngineForce(maxForce, 2);
-            this.playerVehicle.applyEngineForce(maxForce, 3);
+        // 🎯 Smooth engine force
+        const targetForce = isBoosting ? -boostForce : -normalForce;
+        this.currentEngineForce += (targetForce - this.currentEngineForce) * 5 * deltaTime;
+
+        if (forwardKey) {
+            this.playerVehicle.applyEngineForce(this.currentEngineForce, 2);
+            this.playerVehicle.applyEngineForce(this.currentEngineForce, 3);
+        } else if (backwardKey) {
+            this.playerVehicle.applyEngineForce(reverseForce, 2);
+            this.playerVehicle.applyEngineForce(reverseForce, 3);
         } else {
             this.playerVehicle.applyEngineForce(0, 2);
             this.playerVehicle.applyEngineForce(0, 3);
         }
 
-        // Braking
-        if (this.inputManager.isKeyPressed('Space')) {
-            this.playerVehicle.setBrake(brakeForce, 0);
-            this.playerVehicle.setBrake(brakeForce, 1);
-            this.playerVehicle.setBrake(brakeForce, 2);
-            this.playerVehicle.setBrake(brakeForce, 3);
-        } else {
-            this.playerVehicle.setBrake(0, 0);
-            this.playerVehicle.setBrake(0, 1);
-            this.playerVehicle.setBrake(0, 2);
-            this.playerVehicle.setBrake(0, 3);
+        // 🛑 Braking
+        if (brakeKey) {
+            this.playerVehicle.applyEngineForce(reverseForce, 2);
+            this.playerVehicle.applyEngineForce(reverseForce, 3);
+            if (this.cameraManager.controller?.triggerShake) {
+                this.cameraManager.controller.triggerShake(0.2, 0.08);
+            }
         }
     }
 } 

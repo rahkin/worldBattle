@@ -305,8 +305,9 @@ export class Game {
         // Create new vehicle
         this.playerVehicle = this.vehicleFactory.createVehicle(vehicleId);
         
-        // Reset camera to follow new vehicle
+        // Set up input manager for vehicle control
         if (this.playerVehicle) {
+            this.playerVehicle.inputManager = this.inputManager;
             this.cameraManager.setTarget(this.playerVehicle);
         }
 

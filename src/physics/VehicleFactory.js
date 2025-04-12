@@ -20,22 +20,22 @@ export class VehicleFactory {
         let vehicle;
         switch(type.toLowerCase()) {
             case 'muscle':
-                vehicle = new MuscleCar(this.world, this.scene);
+                vehicle = new MuscleCar(this.world, this.scene, this.game);
                 break;
             case 'ironclad':
                 vehicle = new Ironclad(this.world, this.scene, this.game);
                 break;
             case 'scorpion':
-                vehicle = new Scorpion(this.world, this.scene);
+                vehicle = new Scorpion(this.world, this.scene, this.game);
                 break;
             case 'junkyard':
-                vehicle = new JunkyardKing(this.world, this.scene);
+                vehicle = new JunkyardKing(this.world, this.scene, this.game);
                 break;
             case 'tank':
-                vehicle = new Tank(this.world, this.scene);
+                vehicle = new Tank(this.world, this.scene, this.game);
                 break;
             case 'drone':
-                vehicle = new Drone(this.world, this.scene);
+                vehicle = new Drone(this.world, this.scene, this.game);
                 break;
             case 'base':
                 vehicle = new BaseCar(this.world, this.scene, options);

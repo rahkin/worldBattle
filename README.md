@@ -110,7 +110,7 @@ A 3D vehicle combat game built with Three.js and CANNON.js.
 - [x] Movement system (acceleration, turning, suspension)
 - [x] Physics setup with Cannon-es (gravity, friction, collisions)
 - [x] Vehicle damage states and explosion
-- [ ] Weapon system (Dual Cannons, projectile firing)
+- [x] Weapon system (Dual Cannons, projectile firing)
 - [ ] Power-up system (Health, Speed, Overcharge)
 - [ ] Resupply system (ammo refill with cooldown)
 - [ ] Day/Night system (24-hour cycle, lighting, headlights)

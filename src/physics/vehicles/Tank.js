@@ -1,9 +1,10 @@
 import * as THREE from 'three';
 import { BaseCar } from './BaseCar.js';
 import { VehicleGeometryFactory } from '../../utils/GeometryUtils.js';
+import { ProjectileSystem } from '../ProjectileSystem.js';
 
 export class Tank extends BaseCar {
-    constructor(world, scene) {
+    constructor(world, scene, game) {
         const options = {
             width: 1.3,
             height: 0.6,
@@ -28,6 +29,30 @@ export class Tank extends BaseCar {
         };
         super(world, scene, options);
 
+        this.game = game;
+        
+        // Initialize projectile system with larger projectile size
+        this.projectileSystem = new ProjectileSystem(world, scene, game.cameraManager.camera, {
+            projectileSize: 0.5,  // Increased from default size
+            projectileColor: 0xffaa00  // Bright orange for better visibility
+        });
+        
+        // M1 Abrams weapon properties (scaled for game physics)
+        this.weapon = {
+            fireRate: 8000,      // 8 seconds between shots (7.5 rounds per minute)
+            lastShot: -8000,     // Allow immediate first shot
+            projectileSpeed: 175, // Scaled down for physics engine (1/10th of real speed)
+            projectileDamage: 100,
+            range: 1600,         // Doubled range again for better gameplay
+            spread: 0.0005       // Very high accuracy
+        };
+
+        // Simplified turret properties
+        this.turret = {
+            base: null,
+            barrel: null
+        };
+
         // Adjust physics body properties
         this.vehicle.chassisBody.angularDamping = 0.2;  // Better rotation
         this.vehicle.chassisBody.linearDamping = 0.03;   // Less resistance
@@ -44,6 +69,7 @@ export class Tank extends BaseCar {
         this._createDetailedChassis();
         this._addTankFeatures();
         this._enhanceWheels();
+        this._createTurret();
     }
 
     _createDetailedChassis() {
@@ -99,53 +125,6 @@ export class Tank extends BaseCar {
             metalness: 0.8,
             roughness: 0.4
         });
-
-        // Larger, more prominent turret
-        const turretGeo = new THREE.BoxGeometry(1.0, 0.4, 1.4);
-        this.turret = new THREE.Mesh(turretGeo, tankMaterial);
-        this.turret.position.set(0, this.options.height * 1.2, 0);  // Raised higher
-        
-        // Enhanced turret details
-        const turretFrontGeo = new THREE.BoxGeometry(0.9, 0.35, 0.4);
-        const turretFront = new THREE.Mesh(turretFrontGeo, darkMetal);
-        turretFront.position.z = -0.7;
-        turretFront.rotation.x = Math.PI * 0.1;
-        this.turret.add(turretFront);
-
-        // Add turret sides for better shape
-        const turretSideGeo = new THREE.BoxGeometry(0.2, 0.3, 1.2);
-        const leftTurretSide = new THREE.Mesh(turretSideGeo, darkMetal);
-        leftTurretSide.position.set(-0.5, -0.05, 0);
-        this.turret.add(leftTurretSide);
-
-        const rightTurretSide = new THREE.Mesh(turretSideGeo.clone(), darkMetal);
-        rightTurretSide.position.set(0.5, -0.05, 0);
-        this.turret.add(rightTurretSide);
-
-        // Longer, more prominent gun barrel
-        const barrelGeo = new THREE.CylinderGeometry(0.08, 0.08, 2.2, 12);
-        barrelGeo.rotateX(Math.PI / 2);  // Rotate to point forward
-        this.barrel = new THREE.Mesh(barrelGeo, darkMetal);
-        this.barrel.position.set(0, 0.1, -1.8);  // Positioned further forward
-        this.turret.add(this.barrel);
-
-        // Enhanced muzzle brake
-        const muzzleGeo = new THREE.CylinderGeometry(0.12, 0.12, 0.3, 12);
-        muzzleGeo.rotateX(Math.PI / 2);
-        const muzzle = new THREE.Mesh(muzzleGeo, darkMetal);
-        muzzle.position.set(0, 0.1, -2.8);
-        this.turret.add(muzzle);
-
-        // Add muzzle brake slots
-        for (let i = 0; i < 3; i++) {
-            const slotGeo = new THREE.BoxGeometry(0.2, 0.06, 0.1);
-            const slot = new THREE.Mesh(slotGeo, darkMetal);
-            slot.position.set(0, 0.1, -2.8);
-            slot.rotation.y = (i * Math.PI * 2) / 3;
-            this.turret.add(slot);
-        }
-
-        this.chassisMesh.add(this.turret);
 
         // Add track covers (fenders)
         const fenderGeo = new THREE.BoxGeometry(0.2, 0.1, this.options.length * 1.6);
@@ -230,6 +209,226 @@ export class Tank extends BaseCar {
 
             wheelMesh.position.y = this.options.wheelRadius;
         });
+    }
+
+    _createTurret() {
+        // Clear any existing turret components
+        if (this.turret?.base) {
+            this.chassisMesh.remove(this.turret.base);
+        }
+        if (this.turret?.barrel) {
+            this.chassisMesh.remove(this.turret.barrel);
+        }
+
+        this.turret = {};
+
+        // Create turret base
+        const baseGeometry = new THREE.CylinderGeometry(0.8, 0.9, 0.4, 8);
+        this.turret.base = new THREE.Mesh(baseGeometry, new THREE.MeshPhongMaterial({
+            color: this.options.color,
+            metalness: 0.8,
+            roughness: 0.3
+        }));
+        this.turret.base.position.y = this.options.height * 1.5;
+        this.chassisMesh.add(this.turret.base);
+
+        // Create main turret body
+        const turretGeometry = new THREE.BoxGeometry(1.4, 0.5, 1.6);
+        const turretBody = new THREE.Mesh(turretGeometry, new THREE.MeshPhongMaterial({
+            color: this.options.color,
+            metalness: 0.8,
+            roughness: 0.3
+        }));
+        turretBody.position.set(0, this.options.height * 1.5 + 0.3, 0);
+        this.chassisMesh.add(turretBody);
+
+        // Create gun mantlet (thicker armor around barrel)
+        const mantletGeometry = new THREE.CylinderGeometry(0.4, 0.4, 0.4, 16);
+        const mantlet = new THREE.Mesh(mantletGeometry, new THREE.MeshPhongMaterial({
+            color: 0x1a1a1a,
+            metalness: 0.9,
+            roughness: 0.2
+        }));
+        mantlet.rotation.x = Math.PI / 2;
+        mantlet.position.set(0, this.options.height * 1.5 + 0.3, -0.7);
+        this.chassisMesh.add(mantlet);
+
+        // Create main gun barrel (longer and more prominent)
+        const barrelLength = 4.0;
+        const barrelGeometry = new THREE.CylinderGeometry(0.15, 0.15, barrelLength, 16);
+        this.turret.barrel = new THREE.Mesh(barrelGeometry, new THREE.MeshPhongMaterial({
+            color: 0x1a1a1a,
+            metalness: 0.9,
+            roughness: 0.2,
+            side: THREE.DoubleSide
+        }));
+        this.turret.barrel.rotation.x = Math.PI / 2;
+        this.turret.barrel.position.set(0, this.options.height * 1.5 + 0.3, -(barrelLength/2 + 0.7));
+        this.chassisMesh.add(this.turret.barrel);
+
+        // Add barrel reinforcement (thermal sleeve)
+        const sleeveGeometry = new THREE.CylinderGeometry(0.17, 0.17, barrelLength * 0.7, 16);
+        const sleeve = new THREE.Mesh(sleeveGeometry, new THREE.MeshPhongMaterial({
+            color: 0x2a2a2a,
+            metalness: 0.8,
+            roughness: 0.4,
+            side: THREE.DoubleSide
+        }));
+        sleeve.rotation.x = Math.PI / 2;
+        sleeve.position.set(0, this.options.height * 1.5 + 0.3, -(barrelLength * 0.35 + 0.7));
+        this.chassisMesh.add(sleeve);
+
+        // Add muzzle brake
+        const muzzleGeometry = new THREE.CylinderGeometry(0.2, 0.2, 0.5, 16);
+        const muzzle = new THREE.Mesh(muzzleGeometry, new THREE.MeshPhongMaterial({
+            color: 0x1a1a1a,
+            metalness: 0.9,
+            roughness: 0.2,
+            side: THREE.DoubleSide
+        }));
+        muzzle.rotation.x = Math.PI / 2;
+        muzzle.position.set(0, this.options.height * 1.5 + 0.3, -(barrelLength + 0.7));
+        this.chassisMesh.add(muzzle);
+
+        // Add muzzle brake vents
+        const ventGeometry = new THREE.BoxGeometry(0.3, 0.1, 0.1);
+        [-0.15, 0, 0.15].forEach(y => {
+            const vent = new THREE.Mesh(ventGeometry, new THREE.MeshPhongMaterial({
+                color: 0x0a0a0a,
+                metalness: 0.9,
+                roughness: 0.2
+            }));
+            vent.position.set(0, this.options.height * 1.5 + 0.3 + y, -(barrelLength + 0.7));
+            this.chassisMesh.add(vent);
+        });
+
+        // Force initial matrix updates
+        this.chassisMesh.updateMatrixWorld(true);
+        this.turret.base.updateMatrixWorld(true);
+        this.turret.barrel.updateMatrixWorld(true);
+
+        console.log("Static turret created:", {
+            base: this.turret.base.position.toArray(),
+            barrel: this.turret.barrel.position.toArray(),
+            barrelWorld: this.turret.barrel.getWorldPosition(new THREE.Vector3()).toArray()
+        });
+    }
+
+    fireCannon() {
+        if (!this.projectileSystem || !this.turret?.barrel) {
+            console.log("Cannot fire: missing projectile system or barrel");
+            return;
+        }
+
+        const now = Date.now();
+        const timeSinceLastShot = now - this.weapon.lastShot;
+        
+        if (timeSinceLastShot < this.weapon.fireRate) {
+            const remainingCooldown = ((this.weapon.fireRate - timeSinceLastShot) / 1000).toFixed(1);
+            console.log(`Cannot fire: weapon on cooldown (${remainingCooldown}s remaining)`);
+            return;
+        }
+
+        // Get the barrel's world matrix
+        const barrelMatrix = new THREE.Matrix4();
+        barrelMatrix.copy(this.turret.barrel.matrixWorld);
+
+        // Calculate the barrel tip position in world space
+        const barrelTip = new THREE.Vector3();
+        barrelTip.setFromMatrixPosition(barrelMatrix);
+        
+        // Calculate forward direction in barrel's local space
+        const forward = new THREE.Vector3(0, 0, -1);
+        
+        // Transform direction to world space using chassis orientation
+        const direction = forward.clone();
+        direction.applyQuaternion(this.chassisMesh.quaternion);
+        
+        // Move the firing position to the barrel tip
+        barrelTip.add(direction.multiplyScalar(4.0));
+        
+        // Reset direction and add minimal spread (high accuracy)
+        direction.set(0, 0, -1);
+        direction.applyQuaternion(this.chassisMesh.quaternion);
+        direction.x += (Math.random() - 0.5) * this.weapon.spread;
+        direction.y += (Math.random() - 0.5) * this.weapon.spread;
+        direction.normalize();
+
+        console.log("Firing main gun:", {
+            velocity: this.weapon.projectileSpeed + " m/s",
+            cooldown: (this.weapon.fireRate / 1000) + "s",
+            accuracy: "±" + (this.weapon.spread * 100).toFixed(3) + "%",
+            position: barrelTip.toArray(),
+            direction: direction.toArray()
+        });
+
+        // Create projectile
+        this.projectileSystem.createProjectile(
+            barrelTip,
+            direction,
+            this.weapon.projectileSpeed,
+            this.weapon.projectileDamage
+        );
+
+        this.weapon.lastShot = now;
+        this.createMuzzleFlash();
+    }
+
+    createMuzzleFlash() {
+        // Get the barrel's world position and direction
+        const barrelTip = new THREE.Vector3();
+        const direction = new THREE.Vector3(0, 0, -1);
+        direction.applyQuaternion(this.chassisMesh.quaternion);
+        this.turret.barrel.getWorldPosition(barrelTip);
+        barrelTip.add(direction.multiplyScalar(4.0));
+
+        // Create a point light for the muzzle flash
+        const light = new THREE.PointLight(0xffaa00, 3, 4);
+        light.position.copy(barrelTip);
+        this.chassisMesh.add(light);
+
+        // Create a simple flash geometry instead of using a texture
+        const flashGeometry = new THREE.CircleGeometry(0.5, 8);
+        const flashMaterial = new THREE.MeshBasicMaterial({
+            color: 0xffaa00,
+            transparent: true,
+            opacity: 0.8,
+            side: THREE.DoubleSide
+        });
+        const flash = new THREE.Mesh(flashGeometry, flashMaterial);
+        flash.position.copy(barrelTip);
+        flash.rotation.y = Math.PI / 2;
+        this.chassisMesh.add(flash);
+
+        // Animate and remove
+        let scale = 1;
+        const animate = () => {
+            scale *= 0.8;
+            flash.scale.set(scale, scale, scale);
+            flashMaterial.opacity = scale;
+            
+            if (scale > 0.1) {
+                requestAnimationFrame(animate);
+            } else {
+                this.chassisMesh.remove(light);
+                this.chassisMesh.remove(flash);
+                light.dispose();
+                flashMaterial.dispose();
+                flashGeometry.dispose();
+            }
+        };
+        requestAnimationFrame(animate);
+    }
+
+    update(deltaTime) {
+        if (!this.vehicle) return;
+        
+        super.update(deltaTime);
+        
+        // Update projectile system
+        if (this.projectileSystem) {
+            this.projectileSystem.update(deltaTime);
+        }
     }
 
     updateVisuals() {

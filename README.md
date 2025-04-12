@@ -279,3 +279,15 @@ The game features a comprehensive vehicle damage system:
   - Manual recovery with health penalty
   - Safe position detection
   - Cooldown system 
+
+## Weapon Systems Progress
+- [x] Tank cannon (static forward-facing turret with 8s reload)
+- [x] Ironclad cannon
+- [ ] Remaining weapon systems in development
+
+Key Features:
+- Tank cannon fires large orange projectiles with realistic reload time
+- Static turret design for reliability
+- Muzzle flash effects
+- Long-range projectiles (1600 units)
+- High accuracy with minimal spread 

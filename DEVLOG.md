@@ -22,6 +22,13 @@
   - Integrated with projectile system
   - Added proper input handling with left mouse button
   - Positioned cannons for optimal visibility and firing angle
+- Added dual energy beam weapon system to Drone
+  - Implemented forward-mounted energy emitters
+  - Added velocity inheritance for high-speed combat (30% of vehicle velocity)
+  - Created blue energy trails and visual effects
+  - Improved projectile physics and collision detection
+  - Enhanced weapon system integration with vehicle physics
+  - Fixed projectile visibility and effectiveness at high speeds
 
 ### 2025-04-13
 - Added vehicle recovery system
@@ -35,6 +42,11 @@
   - Implemented recovery animation
   - Added recovery cooldown
   - Added visual feedback for recovery state
+- Implemented vehicle recovery system
+  - Added respawn functionality
+  - Created respawn countdown display
+  - Implemented vehicle cleanup during respawn
+  - Added health regeneration after respawn
 
 ### 2025-04-12
 - Added 10-second respawn countdown timer

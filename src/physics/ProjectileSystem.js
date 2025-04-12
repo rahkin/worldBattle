@@ -165,7 +165,7 @@ export class ProjectileSystem {
         return null;
     }
 
-    createProjectile(position, direction, speed = 200, damage = 25) {
+    createProjectile(position, direction, speed = 200, damage = 25, inheritedVelocity = null) {
         const id = this.nextProjectileId++;
         
         // Convert position to CANNON.Vec3 if it's a THREE.Vector3
@@ -180,22 +180,30 @@ export class ProjectileSystem {
         cannonDirection.normalize();
         
         // Create physics body - smaller and denser for better ballistics
-        const radius = 0.1; // Doubled from 0.05 to 0.1
+        const radius = 0.1;
         const shape = new CANNON.Sphere(radius);
         const body = new CANNON.Body({
-            mass: 0.5, // Increased mass for better momentum
+            mass: 0.5,
             shape: shape,
             material: this.projectileMaterial,
             position: cannonPosition,
-            linearDamping: 0.01, // Very low damping for longer range
+            linearDamping: 0.01,
             angularDamping: 0.0
         });
         
-        // Set initial velocity with high speed
-        body.velocity.copy(cannonDirection.scale(speed));
+        // Set initial velocity
+        const baseVelocity = cannonDirection.scale(speed);
+        if (inheritedVelocity) {
+            // Scale down the inherited velocity to 30% of its original strength
+            const scaledInheritedVelocity = inheritedVelocity.scale(0.3);
+            // Add scaled inherited velocity to base velocity
+            body.velocity.copy(baseVelocity.vadd(scaledInheritedVelocity));
+        } else {
+            body.velocity.copy(baseVelocity);
+        }
         
         // Create visual mesh
-        const geometry = new THREE.CylinderGeometry(radius, radius, 0.6, 8); // Doubled length from 0.3 to 0.6
+        const geometry = new THREE.CylinderGeometry(radius, radius, 0.6, 8);
         geometry.rotateX(Math.PI / 2);
         const material = new THREE.MeshPhongMaterial({
             color: 0xff4400,
@@ -217,7 +225,7 @@ export class ProjectileSystem {
             mesh,
             damage,
             createdAt: Date.now(),
-            lifetime: 10000 // 10 seconds lifetime for long range
+            lifetime: 10000
         });
         
         return id;

@@ -87,10 +87,19 @@ A 3D vehicle combat game built with Three.js and CANNON.js.
   - Energy burst effects on firing
 
 ### Drone
-- Futuristic hover vehicle
-- Extreme speed
-- Advanced maneuverability
-- Low durability
+- **Description**: Futuristic hover vehicle with extreme speed
+- **Stats**:
+  - Speed: 10
+  - Handling: 9
+  - Durability: 3
+- **Special Features**:
+  - Hover capability
+  - Extreme maneuverability
+  - Dual energy beam weapons
+    - Fast-firing energy projectiles
+    - Velocity inheritance for high-speed combat
+    - Blue energy trails and effects
+    - Forward-mounted emitters
 
 ## Implementation Plan
 
@@ -249,6 +258,15 @@ src/
 - Added vehicle selection UI
 - Implemented health display system
 - Added debug visualization tools
+- Added dual energy beam weapon system to Drone
+  - Forward-mounted energy emitters
+  - Velocity inheritance for high-speed combat
+  - Blue energy trails and visual effects
+  - Improved projectile physics
+- Enhanced vehicle damage system
+- Improved explosion effects and particle systems
+- Added vehicle cleanup during respawn
+- Fixed projectile system integration
 
 ### Getting Started
 

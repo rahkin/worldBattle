@@ -9,13 +9,15 @@ A multiplayer vehicle combat game set in real-world cities with dynamic weather 
 - [x] Vehicle model import (Razorback)
 - [x] Basic textures applied
 - [x] Movement system (acceleration, turning, suspension)
-- [x] Physics setup (gravity, friction, collisions)
+- [x] Physics setup with Cannon-es (gravity, friction, collisions)
 - [ ] Vehicle damage states and explosion
 - [ ] Weapon system (Dual Cannons, projectile firing)
 - [ ] Power-up system (Health, Speed, Overcharge)
 - [ ] Resupply system (ammo refill with cooldown)
 - [ ] Day/Night system (24-hour cycle, lighting, headlights)
 - [ ] Weather system (Clear, Rain, Fog, Storm)
+- [ ] Sound effects using Howler.js
+- [ ] Custom ECS implementation for game logic
 
 ### Phase 2: Map Integration
 - [ ] Manila rendered with 3D terrain and buildings
@@ -26,9 +28,10 @@ A multiplayer vehicle combat game set in real-world cities with dynamic weather 
 - [ ] Resupply point placement via real POIs
 - [ ] Lighting sync with local time (Mapbox)
 - [ ] Real-world weather visual overlays
+- [ ] GUI implementation with three-mesh-ui
 
 ### Phase 3: Multiplayer Functionality
-- [ ] Server setup with real-time sync
+- [ ] Colyseus server setup with real-time sync
 - [ ] Vehicle movement synchronization
 - [ ] Weapon fire and health sync
 - [ ] Lobby system with disconnect handling
@@ -36,6 +39,7 @@ A multiplayer vehicle combat game set in real-world cities with dynamic weather 
 - [ ] Resupply sync (usage and cooldown)
 - [ ] Synchronized day/night across all players
 - [ ] Synchronized weather and effects
+- [ ] Socket.io implementation for reliable networking
 
 ### Phase 4: UI & Polish
 - [ ] Minimap enhancements (zoom, drag, markers)
@@ -46,10 +50,18 @@ A multiplayer vehicle combat game set in real-world cities with dynamic weather 
 - [ ] Day/Night clock, headlight toggle
 - [ ] Weather icon and visibility bar
 - [ ] Visual effects (explosions, sparks, weather)
-- [ ] Add vehicles: Ironclad, Scorpion, Junkyard King
+- [ ] dat.GUI implementation for debug controls
 
 ### Phase 5: Expansion & Optimization
-- [ ] Add new vehicles: Tank, Drone
+- [ ] Add new vehicle types:
+  - Air Vehicles:
+    - Attack Helicopter (agile air support)
+    - Gunship (heavy air assault)
+    - Fighter Jet (high-speed interceptor)
+  - Sea Vehicles:
+    - Speedboat (fast water transport)
+    - Battleship (heavy naval combat)
+    - Submarine (stealth underwater)
 - [ ] New power-ups: Shield Boost, Trap Drop
 - [ ] Expand resupply types and POIs
 - [ ] Add Snow and Heatwave weather types
@@ -60,6 +72,36 @@ A multiplayer vehicle combat game set in real-world cities with dynamic weather 
 - [ ] Cache map data, reduce weather API calls
 - [ ] 8-player stress test with all systems active
 - [ ] Final balancing and iteration from playtests
+
+### Phase 6: AI & NPCs (Using Yuka)
+- [ ] Basic AI driver implementation
+  - Path following
+  - Obstacle avoidance
+  - Target pursuit
+- [ ] Advanced vehicle behaviors
+  - Combat tactics
+  - Formation driving
+  - Team coordination
+- [ ] NPC Types:
+  - Civilian vehicles (ambient traffic)
+  - Enemy combat units
+  - Squad members
+- [ ] AI Director system
+  - Dynamic difficulty adjustment
+  - Event spawning
+  - Combat intensity control
+- [ ] Behavior Trees
+  - Combat decision making
+  - Role-based actions
+  - Strategic objectives
+- [ ] Environment awareness
+  - Threat detection
+  - Resource management
+  - Territory control
+- [ ] Performance optimization
+  - LOD for AI processing
+  - Behavior pooling
+  - Priority scheduling
 
 ## Development Log
 
@@ -96,10 +138,58 @@ A multiplayer vehicle combat game set in real-world cities with dynamic weather 
 ## Technologies Used
 
 - Three.js for 3D rendering
-- CANNON.js for physics
+- Cannon-es for physics simulation
 - Vite for development and building
 - Mapbox for real-world map data
-- WebSocket for multiplayer functionality
+- Colyseus for multiplayer server
+- Socket.io for networking
+- Howler.js for sound effects
+- Yuka for AI and NPCs
+- Custom ECS for game logic
+- three-mesh-ui for 3D user interfaces
+- dat.GUI for debug controls
+
+## Technologies & Tools Breakdown
+
+### Core Systems
+- **Physics Engine**: Cannon-es
+  - Modern physics simulation
+  - Improved performance over CANNON.js
+  - Better TypeScript support
+
+- **Game Logic**: Custom ECS
+  - Entity Component System architecture
+  - Modular and efficient game state management
+  - Flexible component-based design
+
+### Multiplayer & Networking
+- **Server Framework**: Colyseus
+  - State synchronization
+  - Room management
+  - Client prediction
+
+- **Network Transport**: Socket.io
+  - Reliable real-time communication
+  - Fallback transport methods
+  - Connection state management
+
+### Audio & Visual
+- **Sound System**: Howler.js
+  - Spatial audio support
+  - Multiple audio sprite handling
+  - Cross-browser compatibility
+
+- **User Interface**: 
+  - three-mesh-ui for 3D interfaces
+  - dat.GUI for debug controls
+  - Custom overlays for HUD
+
+### AI & Behavior
+- **NPC System**: Yuka
+  - Vehicle AI behaviors
+  - Pathfinding
+  - Steering behaviors
+  - Goal-oriented action planning
 
 ## Vehicle Types
 
@@ -148,4 +238,86 @@ A multiplayer vehicle combat game set in real-world cities with dynamic weather 
 - Rebalanced vehicle masses for more realistic physics
 - Adjusted vehicle handling characteristics
 - Fixed tank turret orientation
-- Added visual improvements to all vehicles 
+- Added visual improvements to all vehicles
+
+## Project Structure
+
+```
+src/
+├── ai/              # AI behavior and pathfinding
+├── assets/          # Game assets and resources
+├── audio/           # Sound effects and music
+├── core/            # Core game systems
+├── ecs/             # Entity Component System
+├── multiplayer/     # Networking and multiplayer
+├── physics/         # Physics simulation
+│   └── vehicles/    # Vehicle implementations
+│       ├── BaseCar.js
+│       ├── Drone.js
+│       ├── Ironclad.js
+│       ├── JunkyardKing.js
+│       ├── MuscleCar.js
+│       ├── Scorpion.js
+│       └── Tank.js
+├── rendering/       # Graphics and visual effects
+├── styles/          # CSS and styling
+├── ui/             # User interface components
+├── utils/          # Utility functions
+└── xr/             # VR/AR functionality
+
+Key Components:
+- index.js          # Main entry point
+- physics/          # Vehicle physics and collision
+- rendering/        # Three.js scene management
+- multiplayer/      # Colyseus server integration
+- ui/              # three-mesh-ui components
+- audio/           # Howler.js sound system
+```
+
+## Planned Vehicle Types
+
+### Ground Vehicles (Implemented)
+- Tank: Heavy assault vehicle
+- Ironclad: Armored battle vehicle
+- Muscle Car: Performance vehicle
+- Scorpion: Racing vehicle
+- Drone: Hover vehicle
+- Junkyard King: Post-apocalyptic vehicle
+
+### Air Vehicles (Planned)
+- **Attack Helicopter**
+  - Agile air support role
+  - Moderate armor, high maneuverability
+  - Features: Missile pods, chin-mounted gun
+  - Special: Hover capability, lock-on targeting
+
+- **Gunship**
+  - Heavy air assault platform
+  - High armor, moderate speed
+  - Features: Multiple weapon hardpoints, heavy armor
+  - Special: Area suppression capabilities
+
+- **Fighter Jet**
+  - High-speed interceptor
+  - Low armor, extreme speed
+  - Features: Afterburners, air-to-ground weapons
+  - Special: Sonic boom effect, high-altitude capability
+
+### Sea Vehicles (Planned)
+- **Speedboat**
+  - Fast water transport
+  - Very low armor, high speed
+  - Features: Wake effects, water spray
+  - Special: Wave jumping capability
+
+- **Battleship**
+  - Heavy naval combat vessel
+  - Extreme armor, low speed
+  - Features: Multiple turrets, radar system
+  - Special: Long-range artillery support
+
+- **Submarine**
+  - Stealth underwater vehicle
+  - High armor, moderate speed
+  - Features: Torpedo tubes, periscope
+  - Special: Dive capability, sonar system 

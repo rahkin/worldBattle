@@ -1,6 +1,78 @@
 # World Battle
 
-A multiplayer vehicle combat game set in real-world cities with dynamic weather and day/night cycles.
+A 3D vehicle battle game built with Three.js and Cannon.js.
+
+## Features
+
+- Multiple vehicle types with unique characteristics:
+  - **Muscle Car**: High speed and handling
+  - **Ironclad**: Heavy armored vehicle
+  - **Scorpion**: Lightweight speedster
+  - **Junkyard King**: Durable vehicle with improvised armor
+  - **Tank**: Heavy assault vehicle
+  - **Drone**: Light, fast vehicle
+
+- Physics-based gameplay:
+  - Realistic vehicle physics using Cannon.js
+  - Collision detection and response
+  - Ramp jumps and obstacles
+  - Vehicle-specific handling characteristics
+
+- Environment:
+  - Interactive ramps for jumps
+  - Static obstacles
+  - Ground terrain
+
+## Development
+
+### Project Structure
+
+```
+src/
+├── core/           # Core game systems
+├── physics/        # Physics simulation
+│   ├── vehicles/   # Vehicle classes
+│   └── PhysicsWorld.js  # Physics world management
+├── rendering/      # Graphics and scene management
+└── utils/          # Utility functions and helpers
+```
+
+### Physics System
+
+The game uses a consolidated physics system (`PhysicsWorld.js`) that handles:
+- Physics world setup and configuration
+- Material definitions and contact materials
+- Ground plane and obstacle creation
+- Ramp physics and placement
+- Collision detection and response
+- Physics world updates
+
+### Vehicle System
+
+Each vehicle type extends the `BaseCar` class and implements:
+- Unique physical characteristics (mass, dimensions, wheel properties)
+- Custom visual features and materials
+- Performance parameters (speed, handling, durability)
+
+## Getting Started
+
+1. Clone the repository
+2. Install dependencies: `npm install`
+3. Start the development server: `npm run dev`
+4. Open your browser to `http://localhost:3000`
+
+## Controls
+
+- WASD: Vehicle movement
+- Space: Brake
+- Shift: Boost
+- Mouse: Camera control
+
+## Dependencies
+
+- Three.js
+- Cannon.js
+- Vite (development server)
 
 ## Implementation Plan
 
@@ -124,24 +196,6 @@ A multiplayer vehicle combat game set in real-world cities with dynamic weather 
 - Improved vehicle controls and physics
 - Fixed braking system to prevent flipping
 - Added camera effects for boost and braking
-
-## Getting Started
-
-1. Clone the repository
-2. Install dependencies: `npm install`
-3. Start the development server: `npm run dev`
-4. Open `http://localhost:5173` in your browser
-
-## Controls
-
-- W/S: Accelerate/Reverse
-- A/D: Steer Left/Right
-- Space: Brake
-- Shift: Boost
-- C: Toggle Camera Mode (First/Third Person)
-- R: Toggle Rearview (Hold)
-- Mouse: Look around
-- ESC: Pause menu
 
 ## Technologies Used
 

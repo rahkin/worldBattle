@@ -105,6 +105,12 @@ A multiplayer vehicle combat game set in real-world cities with dynamic weather 
 
 ## Development Log
 
+### 2024-03-22 (Update 2)
+- Added rearview camera system for both first and third-person modes
+- Implemented smooth camera transitions for rearview
+- Added 'R' key for rearview toggle
+- Enhanced camera controller with improved quaternion handling
+
 ### 2024-03-22
 - Fixed wheel rotation issues across all vehicles
 - Added brake calipers to both sides of wheels for realism
@@ -132,6 +138,8 @@ A multiplayer vehicle combat game set in real-world cities with dynamic weather 
 - A/D: Steer Left/Right
 - Space: Brake
 - Shift: Boost
+- C: Toggle Camera Mode (First/Third Person)
+- R: Toggle Rearview (Hold)
 - Mouse: Look around
 - ESC: Pause menu
 
@@ -230,6 +238,8 @@ A multiplayer vehicle combat game set in real-world cities with dynamic weather 
 - Color: Deep sky blue
 
 ## Recent Updates
+- Added rearview camera system with smooth transitions
+- Implemented rearview in both first and third-person modes
 - Fixed wheel rotation and brake caliper positioning
 - Enhanced wheel geometry and materials across all vehicles
 - Improved vehicle visual features and materials

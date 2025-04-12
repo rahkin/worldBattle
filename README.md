@@ -63,19 +63,19 @@ A multiplayer vehicle combat game set in real-world cities with dynamic weather 
 
 ## Development Log
 
+### 2024-03-22
+- Fixed wheel rotation issues across all vehicles
+- Added brake calipers to both sides of wheels for realism
+- Improved wheel geometry and materials
+- Enhanced vehicle visual features and materials
+- Fixed Scorpion wheel initialization bug
+
 ### 2024-03-21
 - Implemented smooth engine force application
 - Added boost system with cooldown
 - Improved vehicle controls and physics
 - Fixed braking system to prevent flipping
 - Added camera effects for boost and braking
-
-### 2024-03-20
-- Set up basic project structure
-- Implemented vehicle physics with CANNON.js
-- Added Razorback vehicle model
-- Created basic movement system
-- Implemented camera following system
 
 ## Getting Started
 
@@ -140,6 +140,11 @@ A multiplayer vehicle combat game set in real-world cities with dynamic weather 
 - Color: Deep sky blue
 
 ## Recent Updates
+- Fixed wheel rotation and brake caliper positioning
+- Enhanced wheel geometry and materials across all vehicles
+- Improved vehicle visual features and materials
+- Fixed Scorpion class wheel initialization
+- Added symmetrical brake calipers to all wheels
 - Rebalanced vehicle masses for more realistic physics
 - Adjusted vehicle handling characteristics
 - Fixed tank turret orientation

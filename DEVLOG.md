@@ -188,3 +188,43 @@ vehicle.wheelInfos.forEach((wheelInfo, i) => {
 - Consider adding special abilities for light tank role
 - Test vehicle balance in combat scenarios
 - Evaluate need for further visual enhancements 
+
+## 2024-03-22: Vehicle Visual Improvements
+
+### Wheel System Overhaul
+- Fixed wheel rotation issues that were causing incorrect rotation direction during vehicle movement
+- Implemented proper wheel geometry orientation using Z-axis rotation
+- Added brake calipers to both sides of each wheel for improved realism
+- Enhanced wheel materials with better tire and rim textures
+
+### Vehicle-Specific Updates
+
+#### Scorpion
+- Fixed wheel initialization bug in `_createDetailedChassis`
+- Moved wheel enhancement logic to dedicated `_enhanceWheels` method
+- Added 10 thin spokes for a sporty appearance
+- Implemented symmetrical brake calipers
+
+#### Muscle Car
+- Updated wheel geometry with proper rotation axes
+- Added symmetrical brake calipers to match real muscle cars
+- Refined brake caliper positioning and size
+- Improved wheel material properties
+
+### Technical Details
+- Brake calipers now use BoxGeometry with dimensions relative to wheel size
+- Wheel components properly aligned using Z-axis rotation
+- Improved wheel positioning with slight outward offset
+- Enhanced material properties for better visual quality
+
+### Code Structure Improvements
+- Separated wheel enhancement logic from chassis creation
+- Standardized wheel creation across vehicle classes
+- Improved code organization and comments
+- Added proper geometry cleanup to prevent memory leaks
+
+## Next Steps
+- Consider adding brake rotor visuals
+- Implement wheel particle effects for different surfaces
+- Add tire marks during aggressive maneuvers
+- Consider adding wheel deformation on impact 

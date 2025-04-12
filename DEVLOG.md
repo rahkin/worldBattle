@@ -265,3 +265,53 @@ vehicle.wheelInfos.forEach((wheelInfo, i) => {
 - Add camera shake for impacts
 - Consider adding cinematic camera modes
 - Implement split-screen for local multiplayer 
+
+## 2024-03-24: Vehicle Recovery and Teleport System
+
+### Recovery System Implementation
+- Added robust vehicle recovery system with safe position detection
+- Implemented damage penalty (15 units) for using recovery
+- Added cooldown system to prevent recovery spam
+- Created safe position detection algorithm to find clear areas
+
+### Vehicle Teleport System
+```javascript
+forceTeleport(position, quaternion = new CANNON.Quaternion(0, 0, 0, 1)) {
+    // Clear velocities and forces
+    chassis.velocity.setZero();
+    chassis.angularVelocity.setZero();
+
+    // Force position + orientation
+    chassis.position.copy(position);
+    chassis.quaternion.copy(quaternion);
+
+    // Reset wheel states
+    for (let i = 0; i < this._vehicle.wheelInfos.length; i++) {
+        const wheel = this._vehicle.wheelInfos[i];
+        wheel.suspensionLength = wheel.suspensionRestLength;
+        wheel.suspensionForce = 0;
+        wheel.deltaRotation = 0;
+    }
+}
+```
+
+### Technical Improvements
+- Added safety checks for vehicle and chassis existence
+- Implemented proper wheel transform updates
+- Enhanced visual synchronization during teleports
+- Added position verification and logging
+- Improved error handling and debug feedback
+
+### Recovery Mechanics
+- Vehicle takes 15 damage points when using recovery
+- Recovery has a cooldown period to prevent abuse
+- Safe positions are found using physics raycasts
+- Multiple safety checks ensure clear landing spots
+- Visual and physics states are properly synchronized
+
+### Next Steps
+1. Fine-tune recovery cooldown duration
+2. Add visual effects for teleportation
+3. Implement recovery point selection UI
+4. Consider adding strategic recovery points
+5. Add network synchronization for multiplayer 

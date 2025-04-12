@@ -17,6 +17,7 @@ A 3D vehicle combat game built with Three.js and CANNON.js.
   - Collision detection and response
   - Damage system with visual feedback
   - Wheel physics and suspension
+  - Vehicle recovery and teleport system
 
 - Visual effects:
   - Dynamic lighting and shadows
@@ -29,6 +30,8 @@ A 3D vehicle combat game built with Three.js and CANNON.js.
   - Damage and health system
   - Boost mechanics
   - Camera controls (including rear view)
+  - Recovery system with damage penalty
+  - Safe position detection for vehicle resets
 
 ## Development
 
@@ -38,6 +41,8 @@ A 3D vehicle combat game built with Three.js and CANNON.js.
 - Added damage testing environment
 - Improved wheel physics and visibility
 - Added ramps for vehicle jumps
+- Added vehicle recovery and teleport system
+- Implemented safe position detection for vehicle resets
 
 ### Getting Started
 
@@ -52,6 +57,7 @@ A 3D vehicle combat game built with Three.js and CANNON.js.
 - Space: Brake
 - Shift: Boost
 - R: Toggle rear view camera
+- T: Test teleport (development)
 - Mouse: Look around
 - Scroll: Zoom camera
 

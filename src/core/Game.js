@@ -6,7 +6,9 @@ import { CameraManager } from '../rendering/CameraManager.js';
 import { GameLoop } from './GameLoop.js';
 import { DebugManager } from './DebugManager.js';
 import { VehicleSelector } from '../rendering/VehicleSelector.js';
-import { JumpRamp } from '../physics/objects/JumpRamp.js';
+import { HealthDisplay } from '../rendering/HealthDisplay.js';
+import { BaseCar } from '../physics/vehicles/BaseCar.js';
+import * as CANNON from 'cannon-es';
 
 export class Game {
     constructor() {
@@ -19,7 +21,6 @@ export class Game {
         
         this.vehicleFactory = null;
         this.playerVehicle = null;
-        this.jumpRamp = null;
         
         // Force and boost tracking
         this.currentEngineForce = 0; // Smooth force application
@@ -28,6 +29,12 @@ export class Game {
 
         // Vehicle selection
         this.vehicleSelector = null;
+
+        this.healthDisplay = null;
+
+        this.keys = {
+            recovery: false
+        };
     }
 
     async init() {
@@ -52,15 +59,6 @@ export class Game {
             console.log('Creating player vehicle...');
             this.playerVehicle = this.vehicleFactory.createVehicle('muscle');
 
-            // Create jump ramp
-            console.log('Creating jump ramp...');
-            this.jumpRamp = new JumpRamp(this.physicsWorld.world, this.sceneManager.scene, {
-                width: 4,
-                height: 2,
-                length: 6,
-                position: { x: 0, y: 0, z: 15 }  // Place the ramp 15 units ahead
-            });
-
             console.log('Initializing camera...');
             this.cameraManager.init(this.sceneManager.scene);
             if (this.playerVehicle) {
@@ -77,11 +75,19 @@ export class Game {
             if (loadingScreen) {
                 loadingScreen.style.display = 'none';
             }
+
+            // Create health display
+            console.log('Initializing health display...');
+            this.healthDisplay = new HealthDisplay();
+            console.log('Health display initialized');
+            
             console.log('Game ready!');
 
             // Initialize vehicle selector
             this.vehicleSelector = new VehicleSelector(this);
             this.vehicleSelector.show();
+
+            this._setupControls();
         } catch (error) {
             console.error('Failed to initialize game:', error);
             const loadingScreen = document.getElementById('loading-screen');
@@ -95,6 +101,12 @@ export class Game {
     }
 
     update(deltaTime) {
+        // Handle input first
+        this.handleInput(deltaTime);
+        
+        // Then update input manager to clear the pressed keys
+        this.inputManager.update();
+        
         // Update physics
         this.physicsWorld.update(deltaTime);
         
@@ -103,28 +115,43 @@ export class Game {
         
         // Update camera
         this.cameraManager.update(deltaTime);
-        
-        // Handle input
-        this.handleInput(deltaTime);
 
         // Update debug visualization
         if (this.debugManager) {
             this.debugManager.update();
         }
         
-        // Update jump ramp if needed
-        if (this.jumpRamp) {
-            this.jumpRamp.update();
+        // Update health display if player vehicle exists
+        if (this.playerVehicle && this.healthDisplay) {
+            const health = this.playerVehicle.damageSystem.currentHealth;
+            const maxHealth = this.playerVehicle.damageSystem.options.maxHealth;
+            this.healthDisplay.update(health, maxHealth);
+
+            // Check if vehicle is destroyed
+            if (this.playerVehicle.damageSystem.isDestroyed) {
+                // Wait for explosion animation to complete
+                setTimeout(() => {
+                    this.respawnVehicle();
+                }, 3000); // 3 seconds delay before respawn
+            }
         }
-        
+
+        // Update vehicle
+        if (this.playerVehicle) {
+            this.playerVehicle.update(deltaTime);
+        }
+
         // Render scene
         this.sceneManager.render(this.cameraManager.camera);
     }
 
     handleInput(deltaTime) {
-        if (!this.playerVehicle || !this.playerVehicle.vehicle) return;
+        if (!this.playerVehicle || !this.playerVehicle._vehicle) {
+            console.log('No player vehicle available');
+            return;
+        }
 
-        const vehicle = this.playerVehicle.vehicle; // Easier access
+        const vehicle = this.playerVehicle._vehicle; // Use _vehicle instead of vehicle
         const maxSteerVal = 0.5;
         const normalForce = 1800;
         const boostForce = 2200;
@@ -137,6 +164,41 @@ export class Game {
         const rightKey = this.inputManager.isKeyPressed('KeyD');
         const brakeKey = this.inputManager.isKeyPressed('Space');
         const boostKey = this.inputManager.isKeyPressed('ShiftLeft') || this.inputManager.isKeyPressed('ShiftRight');
+        const rearViewKey = this.inputManager.isKeyPressed('KeyR');
+        const recoveryKey = this.keys.recovery;
+
+        // Test vehicle reset with T key
+        if (this.inputManager.isKeyPressedOnce('KeyT')) {
+            console.log('T key pressed - attempting teleport');
+            const currentPos = this.playerVehicle._vehicle.chassisBody.position;
+            console.log('Current position:', currentPos.toArray());
+            
+            // Move 5 units forward and 2 units up from current position
+            const pos = new CANNON.Vec3(
+                currentPos.x + 5,
+                currentPos.y + 2,
+                currentPos.z
+            );
+            
+            // Apply damage before teleport
+            this.playerVehicle.damageSystem.applyDamage(15);
+            
+            this.playerVehicle.forceTeleport(pos);
+            console.log("Teleported to:", pos.toArray());
+            console.log('New position:', this.playerVehicle._vehicle.chassisBody.position.toArray());
+            
+            // Update health display
+            if (this.healthDisplay) {
+                const health = this.playerVehicle.damageSystem.currentHealth;
+                const maxHealth = this.playerVehicle.damageSystem.options.maxHealth;
+                this.healthDisplay.update(health, maxHealth);
+            }
+        }
+
+        // Handle rearview camera
+        if (this.cameraManager.controller) {
+            this.cameraManager.controller.setRearView(rearViewKey);
+        }
 
         const BOOST_DURATION = 2;
         const COOLDOWN_DURATION = 5;
@@ -201,6 +263,11 @@ export class Game {
                 this.cameraManager.controller.triggerShake(0.2, 0.08);
             }
         }
+
+        // Recovery system
+        if (recoveryKey) {
+            this._handleRecovery();
+        }
     }
 
     selectVehicle(vehicleId) {
@@ -227,6 +294,60 @@ export class Game {
         // Reset camera to follow new vehicle
         if (this.playerVehicle) {
             this.cameraManager.setTarget(this.playerVehicle);
+        }
+
+        // Update health display visibility
+        if (this.healthDisplay) {
+            console.log(`Setting health display visibility: ${this.playerVehicle !== null}`);
+            this.healthDisplay.setVisible(this.playerVehicle !== null);
+        }
+    }
+
+    _setupControls() {
+        window.addEventListener('keydown', (e) => {
+            // Add any additional controls here if needed
+        });
+    }
+
+    respawnVehicle() {
+        if (!this.playerVehicle) return;
+
+        // Remove destroyed vehicle
+        this.vehicleFactory.removeVehicle(this.playerVehicle);
+
+        // Create new vehicle of the same type
+        const vehicleType = this.playerVehicle.constructor.name.toLowerCase();
+        this.playerVehicle = this.vehicleFactory.createVehicle(vehicleType);
+
+        // Reset camera target
+        if (this.playerVehicle) {
+            this.cameraManager.setTarget(this.playerVehicle);
+        }
+
+        // Reset health display
+        if (this.healthDisplay) {
+            const health = this.playerVehicle.damageSystem.currentHealth;
+            const maxHealth = this.playerVehicle.damageSystem.options.maxHealth;
+            this.healthDisplay.update(health, maxHealth);
+        }
+    }
+
+    _handleRecovery() {
+        if (this.playerVehicle && this.playerVehicle.canRecover) {
+            const currentPosition = this.playerVehicle.vehicle.chassisBody.position.clone();
+            const safePosition = this.playerVehicle._findSafePosition(currentPosition);
+
+            if (safePosition) {
+                this.playerVehicle.forceTeleport(safePosition);
+                this.playerVehicle.damageSystem.applyDamage(15);
+                this.playerVehicle.recoveryCooldown = this.playerVehicle.recoveryCooldownTime;
+                this.playerVehicle.canRecover = false;
+                console.log('Player vehicle reset to:', safePosition.toArray());
+            } else {
+                console.warn('Could not find safe recovery position');
+            }
+        } else {
+            console.log('Recovery not available yet');
         }
     }
 } 

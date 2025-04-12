@@ -104,11 +104,12 @@ A multiplayer vehicle combat game set in real-world cities with dynamic weather 
 ## Vehicle Types
 
 ### Tank
-- Heavy military vehicle with rotating turret and tracks
-- Mass: 2000 units
-- High durability, slower movement
-- Features: Rotating turret, gun barrel, tank tracks
-- Color: Dark olive green
+- Light armored vehicle with rotating turret and tracks
+- Mass: 1200 units
+- Good balance of speed and durability
+- Features: Modern turret design, long-barrel gun, detailed tracks
+- Color: Military olive drab
+- Special: High mobility with maintained firepower
 
 ### Ironclad
 - Heavily armored battle vehicle

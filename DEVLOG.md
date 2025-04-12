@@ -142,4 +142,49 @@ vehicle.wheelInfos.forEach((wheelInfo, i) => {
 ### Next Steps
 - Further testing of vehicle performance with new mass values
 - Fine-tune vehicle-specific abilities based on mass characteristics
-- Consider adding mass-dependent gameplay mechanics 
+- Consider adding mass-dependent gameplay mechanics
+
+## 2024-03-23: Light Tank Redesign and Vehicle Balance Updates
+
+### Tank Redesign
+- Converted Tank from heavy to light armored vehicle:
+  - Reduced mass from 2000 to 1200 units
+  - Increased engine force to 8500 for better mobility
+  - Enhanced turning capabilities with maxSteerAngle 0.7
+  - Improved suspension system for agility
+  - Updated visual design for modern light tank aesthetic
+
+### Visual Improvements
+- Enhanced tank turret and gun system:
+  - Larger, more prominent turret (1.0 × 0.4 × 1.4 units)
+  - Extended gun barrel (2.2 units) with realistic orientation
+  - Added detailed muzzle brake with slots
+  - Improved turret side panels and armor details
+  - Added equipment boxes and fenders for authenticity
+
+### Physics Adjustments
+- Fine-tuned light tank characteristics:
+  - Reduced angular damping to 0.2 for better rotation
+  - Decreased linear damping to 0.03 for less resistance
+  - Adjusted wheel friction and suspension for agility
+  - Enhanced track system with detailed wheel designs
+  - Added realistic movement oscillation
+
+### Balance Changes
+- Updated Tank stats to reflect new role:
+  - Speed increased from 3 to 6
+  - Handling improved from 4 to 7
+  - Durability adjusted from 10 to 7
+  - Description updated to emphasize mobility and firepower
+
+### Technical Details
+- Implemented smoother chassis design with VehicleGeometryFactory
+- Added detailed track system with individual track pads
+- Enhanced material properties for better visual quality
+- Improved overall vehicle proportions and aesthetics
+
+### Next Steps
+- Fine-tune vehicle performance based on player feedback
+- Consider adding special abilities for light tank role
+- Test vehicle balance in combat scenarios
+- Evaluate need for further visual enhancements 

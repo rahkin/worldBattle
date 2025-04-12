@@ -1,11 +1,119 @@
 import * as CANNON from 'cannon-es';
 import * as THREE from 'three';
+import { MuscleCar } from './vehicles/MuscleCar';
+import { BaseCar } from './vehicles/BaseCar';
+import { Ironclad } from './vehicles/Ironclad';
+import { Scorpion } from './vehicles/Scorpion';
+import { JunkyardKing } from './vehicles/JunkyardKing';
+import { Tank } from './vehicles/Tank';
+import { Drone } from './vehicles/Drone';
 
 export class VehicleFactory {
     constructor(world, scene) {
         this.world = world;
         this.scene = scene;
-        this.vehicles = new Map();
+        this.activeVehicles = new Set();
+    }
+
+    createVehicle(type, options = {}) {
+        let vehicle;
+        switch(type.toLowerCase()) {
+            case 'muscle':
+                vehicle = new MuscleCar(this.world, this.scene);
+                break;
+            case 'ironclad':
+                vehicle = new Ironclad(this.world, this.scene);
+                break;
+            case 'scorpion':
+                vehicle = new Scorpion(this.world, this.scene);
+                break;
+            case 'junkyard':
+                vehicle = new JunkyardKing(this.world, this.scene);
+                break;
+            case 'tank':
+                vehicle = new Tank(this.world, this.scene);
+                break;
+            case 'drone':
+                vehicle = new Drone(this.world, this.scene);
+                break;
+            case 'base':
+                vehicle = new BaseCar(this.world, this.scene, options);
+                break;
+            default:
+                console.warn(`Vehicle type '${type}' not found, creating base car`);
+                vehicle = new BaseCar(this.world, this.scene, options);
+        }
+        this.activeVehicles.add(vehicle);
+        return vehicle;
+    }
+
+    removeVehicle(vehicle) {
+        this.activeVehicles.delete(vehicle);
+    }
+
+    getAvailableVehicles() {
+        return [
+            {
+                id: 'muscle',
+                name: 'Muscle Car',
+                description: 'Fast and agile with boost capability',
+                stats: {
+                    speed: 8,
+                    handling: 7,
+                    durability: 6
+                }
+            },
+            {
+                id: 'ironclad',
+                name: 'Ironclad',
+                description: 'Heavily armored but slower',
+                stats: {
+                    speed: 4,
+                    handling: 5,
+                    durability: 9
+                }
+            },
+            {
+                id: 'scorpion',
+                name: 'Scorpion',
+                description: 'Lightweight and fast, but fragile',
+                stats: {
+                    speed: 9,
+                    handling: 8,
+                    durability: 4
+                }
+            },
+            {
+                id: 'junkyard',
+                name: 'Junkyard King',
+                description: 'Durable and reliable, built from scrap',
+                stats: {
+                    speed: 5,
+                    handling: 6,
+                    durability: 8
+                }
+            },
+            {
+                id: 'tank',
+                name: 'Tank',
+                description: 'Light armored tank with good mobility and firepower',
+                stats: {
+                    speed: 6,
+                    handling: 7,
+                    durability: 7
+                }
+            },
+            {
+                id: 'drone',
+                name: 'Drone',
+                description: 'Futuristic hover vehicle with extreme speed',
+                stats: {
+                    speed: 10,
+                    handling: 9,
+                    durability: 3
+                }
+            }
+        ];
     }
 
     async createMuscleCar(position = { x: 0, y: 0, z: 0 }) {
@@ -77,53 +185,14 @@ export class VehicleFactory {
             return mesh;
         });
 
-        this.vehicles.set(vehicle, {
-            chassis: chassisMesh,
-            wheels: wheelMeshes
-        });
-
-        console.log("Wheel Configuration:");
-        vehicle.wheelInfos.forEach((wheel, i) => {
-            console.log(`Wheel ${i} (${i < 2 ? 'Front' : 'Rear'}):`);
-            console.log("  Axle:", wheel.axleLocal.toString());
-            console.log("  Direction:", wheel.directionLocal.toString());
-            console.log("  Position:", wheel.chassisConnectionPointLocal.toString());
-        });
-
         return vehicle;
     }
 
     update(deltaTime = 1 / 60) {
-        this.vehicles.forEach((meshes, vehicle) => {
-            const { chassis, wheels } = meshes;
-
-            // Update chassis
-            chassis.position.copy(vehicle.chassisBody.position);
-            chassis.quaternion.copy(vehicle.chassisBody.quaternion);
-
-            // Forward direction (z axis)
-            const forward = new CANNON.Vec3(0, 0, 1);
-            const velocity = vehicle.chassisBody.velocity;
-            const forwardVelocity = velocity.dot(forward);
-
-            // Update wheels
-            vehicle.wheelInfos.forEach((wheelInfo, i) => {
-                vehicle.updateWheelTransform(i);
-                const wheelMesh = wheels[i];
-                const t = wheelInfo.worldTransform;
-                wheelMesh.position.copy(t.position);
-                wheelMesh.quaternion.copy(t.quaternion);
-
-                // 🔁 Spin animation (forward or backward)
-                const radius = wheelInfo.radius;
-                const speed = vehicle.chassisBody.velocity.length();
-                const angularVelocity = speed / radius;
-                const direction = Math.sign(forwardVelocity || 1);
-
-                // Manually add spin angle on top of quaternion rotation
-                wheelMesh.userData.spinAngle = (wheelMesh.userData.spinAngle || 0) + angularVelocity * deltaTime * direction;
-                wheelMesh.rotateX(angularVelocity * deltaTime * direction); // Apply local spin
-            });
-        });
+        for (const vehicle of this.activeVehicles) {
+            if (vehicle && vehicle.updateVisuals) {
+                vehicle.updateVisuals();
+            }
+        }
     }
 } 

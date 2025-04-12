@@ -32,6 +32,9 @@ export class Game {
 
         this.healthDisplay = null;
 
+        // Add respawn countdown property
+        this.respawnCountdown = undefined;
+
         this.keys = {
             recovery: false
         };
@@ -128,11 +131,24 @@ export class Game {
             this.healthDisplay.update(health, maxHealth);
 
             // Check if vehicle is destroyed
-            if (this.playerVehicle.damageSystem.isDestroyed) {
-                // Wait for explosion animation to complete
-                setTimeout(() => {
-                    this.respawnVehicle();
-                }, 3000); // 3 seconds delay before respawn
+            if (this.playerVehicle.damageSystem.isDestroyed && !this.respawnCountdown) {
+                // Initialize respawn countdown
+                this.respawnCountdown = 10.0; // 10 seconds countdown
+                this.healthDisplay.showRespawnCounter(this.respawnCountdown);
+            }
+        }
+
+        // Update respawn countdown if active
+        if (this.respawnCountdown !== undefined && this.respawnCountdown > 0) {
+            this.respawnCountdown -= deltaTime;
+            if (this.healthDisplay) {
+                this.healthDisplay.updateRespawnCounter(this.respawnCountdown);
+            }
+            
+            if (this.respawnCountdown <= 0) {
+                this.respawnCountdown = undefined;
+                this.healthDisplay.hideRespawnCounter();
+                this.respawnVehicle();
             }
         }
 
@@ -312,24 +328,69 @@ export class Game {
     respawnVehicle() {
         if (!this.playerVehicle) return;
 
-        // Remove destroyed vehicle
-        this.vehicleFactory.removeVehicle(this.playerVehicle);
+        // Store the current vehicle type and options
+        const currentVehicleType = this.playerVehicle.constructor.name;
+        const currentOptions = { ...this.playerVehicle.options };
 
-        // Create new vehicle of the same type
-        const vehicleType = this.playerVehicle.constructor.name.toLowerCase();
-        this.playerVehicle = this.vehicleFactory.createVehicle(vehicleType);
+        // Remove old vehicle completely from physics world
+        if (this.playerVehicle._vehicle) {
+            // Remove chassis body
+            this.physicsWorld.world.removeBody(this.playerVehicle._vehicle.chassisBody);
+            
+            // Remove wheel bodies using wheelInfos
+            if (this.playerVehicle._vehicle.wheelInfos) {
+                this.playerVehicle._vehicle.wheelInfos.forEach(wheelInfo => {
+                    if (wheelInfo.body) {
+                        this.physicsWorld.world.removeBody(wheelInfo.body);
+                    }
+                });
+            }
+        }
+
+        // Remove old vehicle meshes from scene
+        if (this.playerVehicle.chassisMesh) {
+            this.sceneManager.scene.remove(this.playerVehicle.chassisMesh);
+        }
+        if (this.playerVehicle.wheelMeshes) {
+            this.playerVehicle.wheelMeshes.forEach(mesh => {
+                if (mesh) this.sceneManager.scene.remove(mesh);
+            });
+        }
+
+        // Remove any remaining explosion particles
+        if (this.playerVehicle.damageSystem) {
+            this.playerVehicle.damageSystem.explosionParticles.forEach(particle => {
+                if (particle && particle.mesh) {
+                    this.sceneManager.scene.remove(particle.mesh);
+                }
+            });
+            this.playerVehicle.damageSystem.explosionParticles = [];
+        }
+
+        // Clear the old vehicle reference
+        this.playerVehicle = null;
+
+        // Create a new vehicle at spawn position
+        const spawnPosition = new CANNON.Vec3(0, 2, 0);
+        this.playerVehicle = this.vehicleFactory.createVehicle(currentOptions.type || 'muscle', {
+            ...currentOptions,
+            spawnPosition: spawnPosition
+        });
 
         // Reset camera target
-        if (this.playerVehicle) {
+        if (this.cameraManager) {
             this.cameraManager.setTarget(this.playerVehicle);
         }
 
         // Reset health display
         if (this.healthDisplay) {
+            this.healthDisplay.setVisible(true);
             const health = this.playerVehicle.damageSystem.currentHealth;
             const maxHealth = this.playerVehicle.damageSystem.options.maxHealth;
             this.healthDisplay.update(health, maxHealth);
         }
+
+        console.log('Vehicle respawned at:', spawnPosition.toArray());
     }
 
     _handleRecovery() {

@@ -49,8 +49,22 @@ export class HealthDisplay {
         this.healthText.textContent = '100%';
         this.container.appendChild(this.healthText);
         
+        // Create respawn counter
+        this.respawnCounter = document.createElement('div');
+        this.respawnCounter.style.position = 'absolute';
+        this.respawnCounter.style.top = '50%';
+        this.respawnCounter.style.left = '50%';
+        this.respawnCounter.style.transform = 'translate(-50%, -50%)';
+        this.respawnCounter.style.fontSize = '48px';
+        this.respawnCounter.style.fontWeight = 'bold';
+        this.respawnCounter.style.color = '#fff';
+        this.respawnCounter.style.textShadow = '2px 2px 4px rgba(0,0,0,0.5)';
+        this.respawnCounter.style.display = 'none';
+        this.respawnCounter.style.fontFamily = 'Arial, sans-serif';
+        
         // Add to document
         document.body.appendChild(this.container);
+        document.body.appendChild(this.respawnCounter);
     }
 
     update(health, maxHealth) {
@@ -79,5 +93,19 @@ export class HealthDisplay {
         if (this.container) {
             this.container.style.display = visible ? 'block' : 'none';
         }
+    }
+
+    showRespawnCounter(seconds) {
+        this.respawnCounter.style.display = 'block';
+        this.updateRespawnCounter(seconds);
+    }
+
+    updateRespawnCounter(seconds) {
+        const roundedSeconds = Math.ceil(seconds);
+        this.respawnCounter.textContent = `Respawning in ${roundedSeconds}`;
+    }
+
+    hideRespawnCounter() {
+        this.respawnCounter.style.display = 'none';
     }
 } 

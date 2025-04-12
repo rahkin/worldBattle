@@ -24,6 +24,8 @@ A 3D vehicle combat game built with Three.js and CANNON.js.
   - Post-processing effects
   - Particle systems
   - Health display HUD
+  - Respawn countdown timer
+  - Explosion effects
 
 - Game mechanics:
   - Vehicle selection system
@@ -32,10 +34,13 @@ A 3D vehicle combat game built with Three.js and CANNON.js.
   - Camera controls (including rear view)
   - Recovery system with damage penalty
   - Safe position detection for vehicle resets
+  - 10-second respawn timer after destruction
 
 ## Development
 
 ### Recent Updates
+- Added 10-second respawn countdown timer with HUD display
+- Enhanced vehicle destruction and respawn system
 - Implemented proper HUD health display
 - Enhanced vehicle models with detailed features
 - Added damage testing environment

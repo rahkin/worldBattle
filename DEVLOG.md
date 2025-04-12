@@ -5,6 +5,17 @@
 ### Recent Updates (April 2025)
 
 ### 2025-04-14
+- Implemented comprehensive power-up system:
+  - Added floating collectible power-ups with visual effects
+  - Created power-up types: health, speed, overcharge, shield
+  - Implemented power-up spawning system with 5-second intervals
+  - Added collision detection for power-up collection
+  - Created top-right HUD display for active power-ups
+  - Implemented duration extension for duplicate collections
+  - Added visual feedback with rotating and glowing effects
+  - Integrated power-up effects with vehicle systems
+  - Added proper cleanup and effect expiration
+
 - Added dual machine gun system to Muscle Car:
   - Front-mounted chrome barrels with black bodies
   - Fast-firing rate (100ms between shots)

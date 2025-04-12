@@ -36,6 +36,15 @@ A 3D vehicle combat game built with Three.js and CANNON.js.
   - Safe position detection for vehicle resets
   - 10-second respawn timer after destruction
 
+- [x] Power-up system with visual effects and HUD
+  - Health restoration
+  - Speed boost
+  - Weapon overcharge
+  - Shield protection
+  - Visual collection effects
+  - Top-right HUD display with timers
+  - Duration extension on duplicate collection
+
 ## Vehicle Types
 
 ### Junkyard King

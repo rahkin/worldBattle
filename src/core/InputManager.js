@@ -1,49 +1,68 @@
 export class InputManager {
     constructor() {
-        this.keys = {};
+        this.keys = new Map();
+        this.mouseButtons = new Map();
         this.mousePosition = { x: 0, y: 0 };
-        this.mouseButtons = {};
+        this.normalizedMousePosition = { x: 0, y: 0 };
         this.pressedThisFrame = new Set();
         
         this.setupListeners();
     }
 
     setupListeners() {
-        window.addEventListener('keydown', (e) => {
-            console.log('Key pressed:', e.code);
-            if (!this.keys[e.code]) {
-                this.pressedThisFrame.add(e.code);
-                console.log('Added to pressedThisFrame:', e.code);
-            }
-            this.keys[e.code] = true;
-            
-            // Prevent default behavior for game control keys
-            if (['KeyW', 'KeyS', 'KeyA', 'KeyD', 'Space', 'ShiftLeft', 'ShiftRight', 'KeyC', 'KeyR', 'KeyT'].includes(e.code)) {
-                e.preventDefault();
-            }
-        });
+        document.addEventListener('keydown', this.handleKeyDown.bind(this));
+        document.addEventListener('keyup', this.handleKeyUp.bind(this));
+        document.addEventListener('mousedown', this.handleMouseDown.bind(this));
+        document.addEventListener('mouseup', this.handleMouseUp.bind(this));
+        document.addEventListener('mousemove', this.handleMouseMove.bind(this));
+    }
 
-        window.addEventListener('keyup', (e) => {
-            this.keys[e.code] = false;
-            this.pressedThisFrame.delete(e.code);
-        });
+    handleKeyDown(event) {
+        console.log('Key pressed:', event.code);
+        if (!this.keys.has(event.code)) {
+            this.pressedThisFrame.add(event.code);
+            console.log('Added to pressedThisFrame:', event.code);
+        }
+        this.keys.set(event.code, true);
+        
+        // Prevent default behavior for game control keys
+        if (['KeyW', 'KeyS', 'KeyA', 'KeyD', 'Space', 'ShiftLeft', 'ShiftRight', 'KeyC', 'KeyR', 'KeyT'].includes(event.code)) {
+            event.preventDefault();
+        }
+    }
 
-        window.addEventListener('mousemove', (e) => {
-            this.mousePosition.x = (e.clientX / window.innerWidth) * 2 - 1;
-            this.mousePosition.y = -(e.clientY / window.innerHeight) * 2 + 1;
-        });
+    handleKeyUp(event) {
+        this.keys.set(event.code, false);
+        this.pressedThisFrame.delete(event.code);
+    }
 
-        window.addEventListener('mousedown', (e) => {
-            this.mouseButtons[e.button] = true;
-        });
+    handleMouseDown(event) {
+        this.mouseButtons.set(event.button, true);
+    }
 
-        window.addEventListener('mouseup', (e) => {
-            this.mouseButtons[e.button] = false;
-        });
+    handleMouseUp(event) {
+        this.mouseButtons.set(event.button, false);
+    }
+
+    handleMouseMove(event) {
+        // Get the canvas element
+        const canvas = document.querySelector('canvas');
+        if (!canvas) return;
+
+        // Get canvas bounds
+        const rect = canvas.getBoundingClientRect();
+
+        // Calculate normalized coordinates (-1 to 1)
+        this.normalizedMousePosition.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+        this.normalizedMousePosition.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+
+        // Store raw mouse position
+        this.mousePosition.x = event.clientX - rect.left;
+        this.mousePosition.y = event.clientY - rect.top;
     }
 
     isKeyPressed(code) {
-        return !!this.keys[code];
+        return !!this.keys.get(code);
     }
 
     isKeyPressedOnce(code) {
@@ -53,11 +72,15 @@ export class InputManager {
     }
 
     isMouseButtonPressed(button) {
-        return !!this.mouseButtons[button];
+        return !!this.mouseButtons.get(button);
     }
 
     getMousePosition() {
-        return { ...this.mousePosition };
+        return this.normalizedMousePosition;
+    }
+
+    getRawMousePosition() {
+        return this.mousePosition;
     }
 
     update() {

@@ -1,6 +1,62 @@
 # Development Log
 
-## 2024 Updates
+## 2025 Updates
+
+### Recent Updates (April 2025)
+
+### 2025-04-13
+- Added vehicle recovery system
+  - Press T to reset vehicle position and orientation
+  - 15% health cost per recovery
+  - 3-second cooldown between recoveries
+  - Automatic ground detection for safe repositioning
+  - Preserves vehicle physics properties
+
+### 2025-04-12
+- Added 10-second respawn countdown timer
+- Enhanced vehicle destruction and respawn system
+- Improved HUD display with respawn counter
+- Fixed vehicle cleanup during respawn
+- Enhanced explosion effects and particle systems
+- Implemented proper HUD health display using HTML/CSS
+- Removed 3D health bar from scene
+- Added damage testing environment
+
+### 2025-04-11
+- Fixed wheel rotation issues across all vehicles
+- Added brake calipers to both sides of wheels for realism
+- Improved wheel geometry and materials
+- Enhanced vehicle visual features and materials
+- Fixed Scorpion wheel initialization bug
+
+### 2025-04-10
+- Implemented smooth engine force application
+- Added boost system with cooldown
+- Improved vehicle controls and physics
+- Fixed braking system to prevent flipping
+- Added camera effects for boost and braking
+
+### 2025-04-09
+- Initial project setup
+- Basic vehicle physics implementation
+- Core game loop and rendering system
+- Vehicle selection system
+- Basic camera controls
+
+### 2025-04-08
+- Added interactive ramps for jumps
+- Implemented static obstacles
+- Enhanced ground terrain
+- Improved collision detection
+- Added debug visualization for physics
+
+### 2025-04-07
+- Project initialization
+- Basic Three.js and Cannon.js integration
+- Core game systems setup
+- Basic vehicle implementation
+
+### System Updates
 
 ### Vehicle Systems
 - Implemented multiple vehicle types with unique characteristics
@@ -51,9 +107,9 @@
 - Score tracking
 - Leaderboard system
 
-## Vehicle Physics Implementation
+## Technical Documentation
 
-### 2024-03-22 - Vehicle Control and Physics Improvements
+### Vehicle Physics Implementation
 
 #### Control System Refinements
 - Fixed inverted forward/reverse controls
@@ -77,12 +133,54 @@ const wheelOptions = {
 };
 ```
 
+### Vehicle Mass Hierarchy
+- Tank: 2000 units (Heaviest, military-grade armor)
+- Ironclad: 1500 units (Heavy armor plating)
+- Muscle Car: 800 units (Balanced performance)
+- Scorpion: 400 units (Light and agile)
+- Drone: 300 units (Ultra-light construction)
+
+### Planned Technical Improvements
+
+1. Vehicle Handling
+   - Fine-tune suspension parameters
+   - Adjust friction coefficients
+   - Implement differential steering
+
+2. Visual Enhancements
+   - Add detailed car model
+   - Implement wheel textures
+   - Add particle effects for tire smoke
+
+3. Physics Refinements
+   - Add air resistance
+   - Implement terrain interaction
+   - Add collision response improvements
+
+## 2025-03-22 - Vehicle Control and Physics Improvements
+
+#### Physics Parameter Updates
+```javascript
+const wheelOptions = {
+    radius: 0.4,
+    directionLocal: new CANNON.Vec3(0, -1, 0),    // Suspension direction: down
+    suspensionStiffness: 50,                       // Increased for better stability
+    suspensionRestLength: 0.4,                     // Increased for more travel
+    frictionSlip: 5,                               // Reduced to prevent sticking
+    dampingRelaxation: 2.3,
+    dampingCompression: 4.4,
+    maxSuspensionForce: 100000,
+    rollInfluence: 0.01,
+    axleLocal: new CANNON.Vec3(1, 0, 0),          // Corrected axle direction
+};
+```
+
 #### Wheel Position Adjustments
 - Moved wheel positions to neutral height (Y: 0)
 - Corrected wheel positions relative to chassis
 - Improved wheel contact detection stability
 
-### 2024-03-XX - Initial Vehicle Setup
+### 2025-03-XX - Initial Vehicle Setup
 
 #### Vehicle Factory Implementation
 - Created `VehicleFactory` class to manage vehicle creation and updates
@@ -161,7 +259,7 @@ vehicle.wheelInfos.forEach((wheelInfo, i) => {
    - Implement terrain interaction
    - Add collision response improvements
 
-## 2024-03-22: Vehicle Mass Rebalancing and Improvements
+## 2025-03-22: Vehicle Mass Rebalancing and Improvements
 
 ### Vehicle Mass Rebalancing
 - Implemented a more realistic mass hierarchy for all vehicles:
@@ -195,7 +293,7 @@ vehicle.wheelInfos.forEach((wheelInfo, i) => {
 - Fine-tune vehicle-specific abilities based on mass characteristics
 - Consider adding mass-dependent gameplay mechanics
 
-## 2024-03-23: Light Tank Redesign and Vehicle Balance Updates
+## 2025-03-23: Light Tank Redesign and Vehicle Balance Updates
 
 ### Tank Redesign
 - Converted Tank from heavy to light armored vehicle:
@@ -240,7 +338,7 @@ vehicle.wheelInfos.forEach((wheelInfo, i) => {
 - Test vehicle balance in combat scenarios
 - Evaluate need for further visual enhancements 
 
-## 2024-03-22: Vehicle Visual Improvements
+## 2025-03-22: Vehicle Visual Improvements
 
 ### Wheel System Overhaul
 - Fixed wheel rotation issues that were causing incorrect rotation direction during vehicle movement
@@ -280,7 +378,7 @@ vehicle.wheelInfos.forEach((wheelInfo, i) => {
 - Add tire marks during aggressive maneuvers
 - Consider adding wheel deformation on impact 
 
-## 2024-03-22: Camera System Enhancements
+## 2025-03-22: Camera System Enhancements
 
 ### Rearview Implementation
 - Added comprehensive rearview system for both camera modes:
@@ -317,7 +415,7 @@ vehicle.wheelInfos.forEach((wheelInfo, i) => {
 - Consider adding cinematic camera modes
 - Implement split-screen for local multiplayer 
 
-## 2024-03-24: Vehicle Recovery and Teleport System
+## 2025-03-24: Vehicle Recovery and Teleport System
 
 ### Recovery System Implementation
 - Added robust vehicle recovery system with safe position detection
@@ -366,3 +464,39 @@ forceTeleport(position, quaternion = new CANNON.Quaternion(0, 0, 0, 1)) {
 3. Implement recovery point selection UI
 4. Consider adding strategic recovery points
 5. Add network synchronization for multiplayer 
+
+### Vehicle Damage System Implementation Complete
+
+**Date: [Current Date]**
+
+Completed the vehicle damage and destruction system with the following features:
+
+1. **Damage Visualization**
+   - Progressive damage states with visual feedback
+   - Dents and deformations appear based on damage level
+   - Smoke effects trigger at critical health
+
+2. **Destruction Sequence**
+   - Vehicle explodes when health reaches zero
+   - Explosion effect with particle system
+   - Vehicle meshes hide during destroyed state
+
+3. **Respawn System**
+   - 10-second respawn countdown timer
+   - Center screen countdown display
+   - Vehicle type preservation during respawn
+   - Clean recreation of vehicle with full health
+
+4. **Technical Improvements**
+   - Refactored damage system for better state management
+   - Added proper cleanup of destroyed vehicles
+   - Improved vehicle recreation process
+   - Added extensive logging for debugging
+
+5. **Bug Fixes**
+   - Fixed vehicle type preservation during respawn
+   - Corrected health display updates
+   - Improved damage system reset logic
+   - Enhanced explosion effect visibility
+
+The damage system now provides a complete lifecycle for vehicles from damage accumulation through destruction and respawn, enhancing the game's combat mechanics.

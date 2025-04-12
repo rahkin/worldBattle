@@ -2,12 +2,12 @@ import * as CANNON from 'cannon-es';
 import * as THREE from 'three';
 import { VehicleGeometryFactory } from '../../utils/GeometryUtils.js';
 import { VehicleDamageSystem } from '../VehicleDamageSystem.js';
-import { DamageSystem } from '../DamageSystem.js';
 
 export class BaseCar {
     constructor(world, scene, options = {}) {
         this.world = world;
         this.scene = scene;
+        this.options = options;
 
         // Default parameters (can be overridden per car)
         this.options = Object.assign({
@@ -32,17 +32,19 @@ export class BaseCar {
         this._vehicle = null;
         this.chassisMesh = null;
         this.wheelMeshes = [];
-        this.damageSystem = new DamageSystem(this, {
-            maxHealth: options.maxHealth || 100,
-            damageResistance: options.damageResistance || 1.0,
-            damageThreshold: options.damageThreshold || 10
-        });
-
         this.recoveryCooldown = 0;
         this.recoveryCooldownTime = 3; // 3 seconds cooldown
         this.canRecover = true;
 
+        // Create the car first
         this._createCar();
+
+        // Initialize damage system after car is created
+        this.damageSystem = new VehicleDamageSystem(this, this.scene, {
+            maxHealth: this.options.maxHealth || 100,
+            damageResistance: this.options.damageResistance || 1.0,
+            recoveryCooldown: this.options.recoveryCooldown || 3.0
+        });
     }
 
     _createCar() {
@@ -288,72 +290,37 @@ export class BaseCar {
     }
 
     _findSafePosition(currentPosition) {
-        const maxAttempts = 12; // Increased number of positions to check
-        const radius = 8; // Increased search radius
-        const height = 10;
-        const minClearance = 2;
-        const vehicleSize = 2; // Approximate size of the vehicle
+        console.log('Finding safe position from:', currentPosition.toArray());
+        
+        const maxAttempts = 12;
+        const radius = 8;
+        const height = 5; // Reduced from 10 to 5
+        const minClearance = 1; // Reduced from 2 to 1
+        const vehicleSize = 2;
 
-        // Try positions in a spiral pattern around current position
-        for (let i = 0; i < maxAttempts; i++) {
-            // Spiral pattern for more even distribution
-            const angle = (i / maxAttempts) * Math.PI * 2;
-            const spiralRadius = radius * (i / maxAttempts); // Gradually increase radius
-            const x = currentPosition.x + Math.cos(angle) * spiralRadius;
-            const z = currentPosition.z + Math.sin(angle) * spiralRadius;
+        // First try directly above current position
+        const directUp = new CANNON.Ray(
+            new CANNON.Vec3(currentPosition.x, currentPosition.y + height, currentPosition.z),
+            new CANNON.Vec3(0, -1, 0)
+        );
+        const directResult = new CANNON.RaycastResult();
+        directUp.intersectWorld(this.world, directResult);
 
-            // Check if position is clear using multiple rays
-            const rays = [
-                new CANNON.Vec3(x, currentPosition.y + height, z),
-                new CANNON.Vec3(x + vehicleSize, currentPosition.y + height, z),
-                new CANNON.Vec3(x - vehicleSize, currentPosition.y + height, z),
-                new CANNON.Vec3(x, currentPosition.y + height, z + vehicleSize),
-                new CANNON.Vec3(x, currentPosition.y + height, z - vehicleSize)
-            ];
-
-            let isPositionClear = true;
-            let groundHeight = null;
-
-            for (const rayStart of rays) {
-                const ray = new CANNON.Ray(rayStart, new CANNON.Vec3(0, -1, 0));
-                const result = new CANNON.RaycastResult();
-                ray.intersectWorld(this.world, result);
-
-                if (!result.hasHit) {
-                    isPositionClear = false;
-                    break;
-                }
-
-                const hitPoint = result.hitPointWorld;
-                const clearance = currentPosition.y + height - hitPoint.y;
-                
-                if (clearance < minClearance) {
-                    isPositionClear = false;
-                    break;
-                }
-
-                // Store the ground height
-                if (groundHeight === null) {
-                    groundHeight = hitPoint.y;
-                } else if (Math.abs(hitPoint.y - groundHeight) > 0.5) {
-                    // Check if ground is too uneven
-                    isPositionClear = false;
-                    break;
-                }
-            }
-
-            if (isPositionClear && groundHeight !== null) {
-                // Found a safe position
-                return new CANNON.Vec3(x, groundHeight + 1, z);
-            }
+        if (directResult.hasHit) {
+            console.log('Found direct position above current location');
+            return new CANNON.Vec3(
+                currentPosition.x,
+                directResult.hitPointWorld.y + 1,
+                currentPosition.z
+            );
         }
 
-        // If no safe position found in spiral pattern, try random positions
-        for (let i = 0; i < 5; i++) {
-            const randomAngle = Math.random() * Math.PI * 2;
-            const randomRadius = radius * Math.random();
-            const x = currentPosition.x + Math.cos(randomAngle) * randomRadius;
-            const z = currentPosition.z + Math.sin(randomAngle) * randomRadius;
+        // Try positions in a spiral pattern
+        for (let i = 0; i < maxAttempts; i++) {
+            const angle = (i / maxAttempts) * Math.PI * 2;
+            const spiralRadius = radius * (i / maxAttempts);
+            const x = currentPosition.x + Math.cos(angle) * spiralRadius;
+            const z = currentPosition.z + Math.sin(angle) * spiralRadius;
 
             const ray = new CANNON.Ray(
                 new CANNON.Vec3(x, currentPosition.y + height, z),
@@ -368,50 +335,62 @@ export class BaseCar {
                 const clearance = currentPosition.y + height - hitPoint.y;
                 
                 if (clearance >= minClearance) {
+                    console.log('Found safe position in spiral at:', [x, hitPoint.y + 1, z]);
                     return new CANNON.Vec3(x, hitPoint.y + 1, z);
                 }
             }
         }
 
-        // If still no safe position found, try a position far away
-        const farPosition = new CANNON.Vec3(
-            currentPosition.x + (Math.random() - 0.5) * 20,
-            currentPosition.y + height,
-            currentPosition.z + (Math.random() - 0.5) * 20
+        // If no position found, try a position slightly above current position
+        console.log('No safe position found, returning position above current');
+        return new CANNON.Vec3(
+            currentPosition.x,
+            currentPosition.y + 2,
+            currentPosition.z
         );
-
-        const ray = new CANNON.Ray(farPosition, new CANNON.Vec3(0, -1, 0));
-        const result = new CANNON.RaycastResult();
-        ray.intersectWorld(this.world, result);
-
-        if (result.hasHit) {
-            return new CANNON.Vec3(
-                farPosition.x,
-                result.hitPointWorld.y + 1,
-                farPosition.z
-            );
-        }
-
-        return null;
     }
 
     recreateVehicleAt(newPosition) {
-        // Save old visual meshes
-        this.scene.remove(this.chassisMesh);
-        this.wheelMeshes.forEach(mesh => this.scene.remove(mesh));
+        // Remove old vehicle from physics world
+        if (this._vehicle) {
+            this.world.removeBody(this._vehicle.chassisBody);
+            this._vehicle.wheelInfos.forEach(wheel => {
+                if (wheel.body) {
+                    this.world.removeBody(wheel.body);
+                }
+            });
+        }
+
+        // Remove old meshes from scene
+        if (this.chassisMesh) {
+            this.scene.remove(this.chassisMesh);
+        }
+        this.wheelMeshes.forEach(mesh => {
+            if (mesh) this.scene.remove(mesh);
+        });
+
+        // Reset vehicle state
+        this._vehicle = null;
+        this.chassisMesh = null;
         this.wheelMeshes = [];
+        this.recoveryCooldown = 0;
+        this.canRecover = true;
 
-        // Remove old chassis
-        this.world.removeBody(this._vehicle.chassisBody);
+        // Create new vehicle at the specified position
+        this.options.spawnPosition = newPosition;
+        this._createCar();
 
-        // Recreate car at new position
-        const oldOptions = this.options;
-        oldOptions.spawnPosition = newPosition.clone(); // optionally pass this in options
-        this.options = oldOptions;
-        this._createCar(); // reuse your existing _createCar()
+        // Reset damage system
+        this.damageSystem = new VehicleDamageSystem(this, this.scene, {
+            maxHealth: this.options.maxHealth || 100,
+            damageResistance: this.options.damageResistance || 1.0,
+            recoveryCooldown: this.options.recoveryCooldown || 3.0
+        });
     }
 
     forceTeleport(position, quaternion = new CANNON.Quaternion(0, 0, 0, 1)) {
+        console.log('Force teleporting to:', position.toArray());
+        
         if (!this._vehicle || !this._vehicle.chassisBody) {
             console.warn('Cannot teleport: vehicle or chassis not found');
             return;
@@ -422,18 +401,20 @@ export class BaseCar {
         // Clear velocities
         chassis.velocity.setZero();
         chassis.angularVelocity.setZero();
+        chassis.force.setZero();
+        chassis.torque.setZero();
 
         // Force position + orientation
         chassis.position.copy(position);
         chassis.quaternion.copy(quaternion);
+        chassis.initPosition.copy(position);
+        chassis.initQuaternion.copy(quaternion);
 
         // Force update wheels
         if (this._vehicle.wheelInfos && this._vehicle.wheelInfos.length > 0) {
             for (let i = 0; i < this._vehicle.wheelInfos.length; i++) {
                 const wheel = this._vehicle.wheelInfos[i];
-                if (wheel && wheel.worldTransform) {
-                    wheel.worldTransform.position.copy(position);
-                    wheel.worldTransform.quaternion.copy(quaternion);
+                if (wheel) {
                     wheel.suspensionLength = wheel.suspensionRestLength;
                     wheel.suspensionForce = 0;
                     wheel.deltaRotation = 0;
@@ -441,6 +422,10 @@ export class BaseCar {
                     wheel.steering = 0;
                     wheel.brake = 0;
                     wheel.engineForce = 0;
+                    
+                    if (wheel.raycastResult) {
+                        wheel.raycastResult.reset();
+                    }
                 }
             }
 
@@ -451,12 +436,46 @@ export class BaseCar {
         }
 
         // Update chassis physics
+        chassis.wakeUp();
         chassis.updateMassProperties();
         chassis.updateAABB();
 
         // Immediate visual update
         this.updateVisuals();
 
-        console.log('Teleport complete - Position:', position.toArray());
+        console.log('Teleport complete - New position:', chassis.position.toArray());
+    }
+
+    recreateVehicle() {
+        // Remove old vehicle completely
+        if (this._vehicle) {
+            this.world.removeBody(this._vehicle.chassisBody);
+            this._vehicle.wheelInfos.forEach(wheel => {
+                if (wheel.body) {
+                    this.world.removeBody(wheel.body);
+                }
+            });
+        }
+
+        // Remove old meshes
+        if (this.chassisMesh) {
+            this.scene.remove(this.chassisMesh);
+        }
+        this.wheelMeshes.forEach(wheel => {
+            if (wheel) this.scene.remove(wheel);
+        });
+
+        // Reset arrays
+        this.wheelMeshes = [];
+        this._vehicle = null;
+        this.chassisMesh = null;
+
+        // Create new vehicle
+        this._createCar();
+
+        // Reset damage system
+        if (this.damageSystem) {
+            this.damageSystem.reset();
+        }
     }
 } 

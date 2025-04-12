@@ -9,10 +9,11 @@ import { Tank } from './vehicles/Tank';
 import { Drone } from './vehicles/Drone';
 
 export class VehicleFactory {
-    constructor(world, scene) {
+    constructor(world, scene, game) {
         this.world = world;
         this.scene = scene;
-        this.activeVehicles = new Set();
+        this.game = game;
+        this.vehicles = new Set();
     }
 
     createVehicle(type, options = {}) {
@@ -22,7 +23,7 @@ export class VehicleFactory {
                 vehicle = new MuscleCar(this.world, this.scene);
                 break;
             case 'ironclad':
-                vehicle = new Ironclad(this.world, this.scene);
+                vehicle = new Ironclad(this.world, this.scene, this.game);
                 break;
             case 'scorpion':
                 vehicle = new Scorpion(this.world, this.scene);
@@ -43,12 +44,12 @@ export class VehicleFactory {
                 console.warn(`Vehicle type '${type}' not found, creating base car`);
                 vehicle = new BaseCar(this.world, this.scene, options);
         }
-        this.activeVehicles.add(vehicle);
+        this.vehicles.add(vehicle);
         return vehicle;
     }
 
     removeVehicle(vehicle) {
-        this.activeVehicles.delete(vehicle);
+        this.vehicles.delete(vehicle);
     }
 
     getAvailableVehicles() {
@@ -189,7 +190,7 @@ export class VehicleFactory {
     }
 
     update(deltaTime = 1 / 60) {
-        for (const vehicle of this.activeVehicles) {
+        for (const vehicle of this.vehicles) {
             if (vehicle && vehicle.updateVisuals) {
                 vehicle.updateVisuals();
             }

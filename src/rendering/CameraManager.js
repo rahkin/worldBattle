@@ -10,18 +10,16 @@ export class CameraManager {
             1000
         );
         this.controller = null;
+        // Position camera behind and slightly above the vehicle
+        this.offset = new THREE.Vector3(0, 3, 8);
     }
 
-    init(scene, targetVehicle) {
+    init(scene) {
         this.scene = scene;
-        this.targetVehicle = targetVehicle;
         
-        // Set initial position
-        this.camera.position.set(0, 5, -10);
+        // Set initial position to be behind the spawn point
+        this.camera.position.set(0, 5, 10);
         this.camera.lookAt(0, 0, 0);
-        
-        // Initialize camera controller
-        this.controller = new CameraController(this.camera, targetVehicle.chassisBody);
         
         // Handle window resize
         window.addEventListener('resize', () => {
@@ -32,9 +30,29 @@ export class CameraManager {
         // Add key listener for camera mode toggle
         document.addEventListener('keydown', (event) => {
             if (event.code === 'KeyC') { // 'C' for camera toggle
-                this.controller.toggleMode();
+                this.controller?.toggleMode();
             }
         });
+    }
+
+    setTarget(targetVehicle) {
+        if (targetVehicle && targetVehicle.vehicle) {
+            this.targetVehicle = targetVehicle;
+            this.controller = new CameraController(this.camera, targetVehicle.vehicle.chassisBody);
+            // Set the offset in the controller
+            if (this.controller) {
+                this.controller.offsetThirdPerson.copy(this.offset);
+            }
+        } else {
+            console.warn('Invalid target vehicle provided to camera manager');
+        }
+    }
+
+    setOffset(offset) {
+        this.offset.copy(offset);
+        if (this.controller) {
+            this.controller.offsetThirdPerson.copy(offset);
+        }
     }
 
     update(deltaTime) {

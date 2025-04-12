@@ -12,6 +12,10 @@ export class PhysicsWorld {
         this.groundMaterial = null;
         this.wheelMaterial = null;
         this.obstacleMaterial = null;
+        this.vehicleMaterial = null;
+
+        // Track vehicles for collision handling
+        this.vehicles = new Set();
     }
 
     createRampBody(position, rotation = 0) {
@@ -53,11 +57,20 @@ export class PhysicsWorld {
         return body;
     }
 
+    addVehicle(vehicle) {
+        this.vehicles.add(vehicle);
+    }
+
+    removeVehicle(vehicle) {
+        this.vehicles.delete(vehicle);
+    }
+
     init() {
         // Set up materials first
         this.groundMaterial = new CANNON.Material('ground');
         this.wheelMaterial = new CANNON.Material('wheel');
         this.obstacleMaterial = new CANNON.Material('obstacle');
+        this.vehicleMaterial = new CANNON.Material('vehicle');
         
         // Ground plane
         const groundShape = new CANNON.Plane();
@@ -109,6 +122,31 @@ export class PhysicsWorld {
         );
         this.world.addContactMaterial(obstacleWheelContact);
 
+        // Vehicle collision materials
+        const vehicleVehicleContact = new CANNON.ContactMaterial(
+            this.vehicleMaterial,
+            this.vehicleMaterial,
+            {
+                friction: 0.3,
+                restitution: 0.2,
+                contactEquationStiffness: 1e7,
+                contactEquationRelaxation: 3
+            }
+        );
+        this.world.addContactMaterial(vehicleVehicleContact);
+
+        const vehicleObstacleContact = new CANNON.ContactMaterial(
+            this.vehicleMaterial,
+            this.obstacleMaterial,
+            {
+                friction: 0.4,
+                restitution: 0.3,
+                contactEquationStiffness: 1e7,
+                contactEquationRelaxation: 3
+            }
+        );
+        this.world.addContactMaterial(vehicleObstacleContact);
+
         // Create obstacles
         const obstacles = [
             { pos: new CANNON.Vec3(5, 0.5, 0), size: { x: 1, y: 1, z: 1 } },
@@ -125,13 +163,40 @@ export class PhysicsWorld {
         this.createRampBody(new CANNON.Vec3(0, 0, 15), Math.PI / 2);  // Front ramp
         this.createRampBody(new CANNON.Vec3(0, 0, -15), -Math.PI / 2);  // Back ramp
 
-        // Debug collision events
+        // Handle collisions
         this.world.addEventListener('collide', (event) => {
+            const bodyA = event.bodyA;
+            const bodyB = event.bodyB;
+            const contact = event.contact;
+            
+            if (!contact || !bodyA || !bodyB) return;
+            
+            const impactVelocity = contact.getImpactVelocityAlongNormal();
+
+            // Check if either body is a vehicle
+            const vehicleA = Array.from(this.vehicles).find(v => v.vehicle.chassisBody === bodyA);
+            const vehicleB = Array.from(this.vehicles).find(v => v.vehicle.chassisBody === bodyB);
+
+            if (vehicleA && vehicleB) {
+                // Vehicle-vehicle collision
+                const damage = Math.abs(impactVelocity) * 10;
+                const contactPoint = contact.bi ? contact.bi.position : bodyA.position;
+                vehicleA.applyDamage(damage, contactPoint, impactVelocity);
+                vehicleB.applyDamage(damage, contactPoint, impactVelocity);
+            } else if (vehicleA || vehicleB) {
+                // Vehicle-obstacle collision
+                const vehicle = vehicleA || vehicleB;
+                const damage = Math.abs(impactVelocity) * 5;
+                const contactPoint = contact.bi ? contact.bi.position : bodyA.position;
+                vehicle.applyDamage(damage, contactPoint, impactVelocity);
+            }
+
+            // Debug output
             console.debug('Collision:', {
-                bodyA: event.bodyA.id,
-                bodyB: event.bodyB.id,
-                velocity: event.contact.getImpactVelocityAlongNormal(),
-                contact: event.contact
+                bodyA: bodyA.id,
+                bodyB: bodyB.id,
+                velocity: impactVelocity,
+                contact: contact
             });
         });
     }

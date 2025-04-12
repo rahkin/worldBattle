@@ -1,9 +1,10 @@
 import * as THREE from 'three';
 import { BaseCar } from './BaseCar.js';
 import { VehicleGeometryFactory } from '../../utils/GeometryUtils.js';
+import { ProjectileSystem } from '../ProjectileSystem.js';
 
 export class JunkyardKing extends BaseCar {
-    constructor(world, scene) {
+    constructor(world, scene, game) {
         const options = {
             width: 1.3,
             height: 0.7,
@@ -28,6 +29,22 @@ export class JunkyardKing extends BaseCar {
         };
         super(world, scene, options);
 
+        this.game = game;  // Store game reference
+
+        // Initialize weapon system
+        this.weapon = {
+            projectileSpeed: 150,     // Increased by 25% for more range (120 * 1.25)
+            projectileDamage: 75,     // Less damage than tank shells
+            fireRate: 800,           // Faster fire rate than tank
+            spread: 0.03,            // Reduced spread for denser pattern
+            lastShot: 0,
+            projectileCount: 5,      // Number of projectiles per shot
+            projectileLifetime: 25000 // Increased lifetime to match new range
+        };
+
+        // Initialize projectile system with camera from game
+        this.projectileSystem = new ProjectileSystem(world, scene, game.cameraManager.camera);
+
         // Adjust physics body properties
         this.vehicle.chassisBody.angularDamping = 0.25;   // Reduced for better rotation
         this.vehicle.chassisBody.linearDamping = 0.05;    // Reduced air resistance further
@@ -43,6 +60,7 @@ export class JunkyardKing extends BaseCar {
 
         this._createDetailedChassis();
         this._addJunkyardFeatures();
+        this._createScrapLauncher();
         this._enhanceWheels();
     }
 
@@ -209,6 +227,167 @@ export class JunkyardKing extends BaseCar {
         });
     }
 
+    _createScrapLauncher() {
+        // Create a group for the scrap launcher
+        this.launcher = {
+            base: new THREE.Group(),
+            barrel: null
+        };
+
+        const metalMaterial = new THREE.MeshPhongMaterial({
+            color: 0x505050,
+            metalness: 0.7,
+            roughness: 0.6,
+            flatShading: true
+        });
+
+        // Create launcher base (rotating platform)
+        const baseGeometry = new THREE.CylinderGeometry(0.4, 0.5, 0.3, 8);
+        this.launcher.base = new THREE.Mesh(baseGeometry, metalMaterial);
+        this.launcher.base.position.set(0, this.options.height * 1.8, 0);
+        this.chassisMesh.add(this.launcher.base);
+
+        // Create the main launcher body
+        const launcherGeometry = new THREE.BoxGeometry(0.8, 0.4, 1.2);
+        const launcherBody = new THREE.Mesh(launcherGeometry, metalMaterial);
+        launcherBody.position.set(0, 0.2, 0);
+        this.launcher.base.add(launcherBody);
+
+        // Create the barrel (a wide tube for launching scrap)
+        const barrelGeometry = new THREE.CylinderGeometry(0.25, 0.3, 2.0, 8);
+        this.launcher.barrel = new THREE.Mesh(barrelGeometry, metalMaterial);
+        this.launcher.barrel.rotation.x = Math.PI / 2;
+        this.launcher.barrel.position.set(0, 0.3, -1.0);
+        this.launcher.base.add(this.launcher.barrel);
+
+        // Add some scrap details around the launcher
+        const scrapDetails = [
+            { size: [0.3, 0.1, 0.4], pos: [0.3, 0.4, 0], rot: [0, 0.2, 0] },
+            { size: [0.4, 0.15, 0.2], pos: [-0.3, 0.3, 0.2], rot: [0.1, -0.3, 0] },
+            { size: [0.2, 0.2, 0.3], pos: [0, 0.5, 0.4], rot: [0.2, 0, 0.1] }
+        ];
+
+        scrapDetails.forEach(detail => {
+            const scrapGeo = new THREE.BoxGeometry(...detail.size);
+            const scrap = new THREE.Mesh(scrapGeo, metalMaterial);
+            scrap.position.set(...detail.pos);
+            scrap.rotation.set(...detail.rot);
+            this.launcher.base.add(scrap);
+        });
+
+        // Force initial matrix updates
+        this.chassisMesh.updateMatrixWorld(true);
+        this.launcher.base.updateMatrixWorld(true);
+        this.launcher.barrel.updateMatrixWorld(true);
+    }
+
+    fireScrapLauncher() {
+        if (!this.projectileSystem || !this.launcher?.barrel) {
+            console.log("Cannot fire: missing projectile system or launcher");
+            return;
+        }
+
+        const now = Date.now();
+        const timeSinceLastShot = now - this.weapon.lastShot;
+        
+        if (timeSinceLastShot < this.weapon.fireRate) {
+            const remainingCooldown = ((this.weapon.fireRate - timeSinceLastShot) / 1000).toFixed(1);
+            console.log(`Cannot fire: weapon on cooldown (${remainingCooldown}s remaining)`);
+            return;
+        }
+
+        // Get the barrel's world position
+        const barrelTip = new THREE.Vector3();
+        this.launcher.barrel.getWorldPosition(barrelTip);
+        
+        // Calculate forward direction in launcher's local space
+        const forward = new THREE.Vector3(0, 0, -1);
+        
+        // Transform direction to world space using chassis orientation
+        const baseDirection = forward.clone();
+        baseDirection.applyQuaternion(this.chassisMesh.quaternion);
+        
+        // Fire multiple projectiles in a dense spread pattern
+        for (let i = 0; i < this.weapon.projectileCount; i++) {
+            // Calculate spread for this projectile using a more controlled pattern
+            const direction = baseDirection.clone();
+            
+            // Create a more controlled spread pattern
+            const angle = (i / this.weapon.projectileCount) * Math.PI * 2;
+            const radius = this.weapon.spread;
+            
+            // Add spread in a circular pattern
+            direction.x += Math.cos(angle) * radius;
+            direction.y += Math.sin(angle) * radius;
+            direction.z += (Math.random() - 0.5) * this.weapon.spread * 0.2; // Minimal vertical spread
+            direction.normalize();
+
+            // Calculate projectile position with minimal offset
+            const projectilePos = barrelTip.clone();
+            projectilePos.add(direction.multiplyScalar(2.0));
+            projectilePos.x += (Math.random() - 0.5) * 0.1; // Reduced random offset
+            projectilePos.y += (Math.random() - 0.5) * 0.1; // Reduced random offset
+
+            console.log(`Firing projectile ${i + 1}:`, {
+                velocity: this.weapon.projectileSpeed + " m/s",
+                position: projectilePos.toArray(),
+                direction: direction.toArray()
+            });
+
+            // Create projectile with increased lifetime
+            this.projectileSystem.createProjectile(
+                projectilePos,
+                direction,
+                this.weapon.projectileSpeed,
+                this.weapon.projectileDamage
+            );
+        }
+
+        this.weapon.lastShot = now;
+        this.createMuzzleFlash();
+    }
+
+    createMuzzleFlash() {
+        // Get the barrel's world position
+        const barrelTip = new THREE.Vector3();
+        const direction = new THREE.Vector3(0, 0, -1);
+        direction.applyQuaternion(this.chassisMesh.quaternion);
+        this.launcher.barrel.getWorldPosition(barrelTip);
+        barrelTip.add(direction.multiplyScalar(2.0));
+
+        // Create a point light for the muzzle flash
+        const light = new THREE.PointLight(0xff6600, 2, 3);
+        light.position.copy(barrelTip);
+        this.chassisMesh.add(light);
+
+        // Create a simple flash effect
+        const flashGeometry = new THREE.CircleGeometry(0.4, 8);
+        const flashMaterial = new THREE.MeshBasicMaterial({
+            color: 0xff6600,
+            transparent: true,
+            opacity: 0.7,
+            side: THREE.DoubleSide
+        });
+        const flash = new THREE.Mesh(flashGeometry, flashMaterial);
+        flash.position.copy(barrelTip);
+        flash.lookAt(barrelTip.clone().add(direction));
+        this.chassisMesh.add(flash);
+
+        // Animate the muzzle flash
+        const animate = () => {
+            light.intensity *= 0.8;
+            flashMaterial.opacity *= 0.8;
+
+            if (light.intensity > 0.1) {
+                requestAnimationFrame(animate);
+            } else {
+                this.chassisMesh.remove(light);
+                this.chassisMesh.remove(flash);
+            }
+        };
+        animate();
+    }
+
     _enhanceWheels() {
         const rimMaterial = new THREE.MeshPhongMaterial({
             color: 0x333333,
@@ -278,6 +457,31 @@ export class JunkyardKing extends BaseCar {
 
             wheelMesh.position.y = this.options.wheelRadius;
         });
+    }
+
+    update(deltaTime) {
+        if (!this.vehicle) return;  // Skip if vehicle not ready
+        
+        super.update(deltaTime);
+        
+        // Update projectile system
+        if (this.projectileSystem) {
+            this.projectileSystem.update(deltaTime);
+        }
+
+        // Handle firing input with mouse
+        if (this.inputManager && this.inputManager.isMouseButtonPressed(0)) { // Left mouse button
+            this.fireScrapLauncher();
+        }
+    }
+
+    _setupControls() {
+        // Add firing control to input manager
+        if (this.inputManager) {
+            this.inputManager.addMouseButtonListener(0, () => { // Left mouse button
+                this.fireScrapLauncher();
+            });
+        }
     }
 
     updateVisuals() {

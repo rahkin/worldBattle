@@ -36,6 +36,49 @@ A 3D vehicle combat game built with Three.js and CANNON.js.
   - Safe position detection for vehicle resets
   - 10-second respawn timer after destruction
 
+## Vehicle Types
+
+### Junkyard King
+- Heavy, durable vehicle built from scrap metal
+- Enhanced traction and stability
+- Scrap Launcher weapon system:
+  - Fires 5 projectiles simultaneously in a dense spread pattern
+  - Increased range with 150 m/s projectile speed
+  - 75 damage per projectile
+  - 800ms fire rate
+  - Controlled circular spread pattern for better accuracy
+  - Orange-tinted muzzle flash effects
+
+### Ironclad
+- Heavily armored combat vehicle
+- 25mm chain gun with rapid fire capability
+- High damage resistance
+- Moderate speed and handling
+
+### Tank
+- Light armored tank with good mobility
+- High-powered main gun
+- Long-range capabilities
+- Balanced armor and speed
+
+### Muscle Car
+- High-speed performance vehicle
+- Boost capability
+- Excellent handling
+- Lower durability
+
+### Scorpion
+- Lightweight and fast
+- Agile handling
+- Lower durability
+- High maneuverability
+
+### Drone
+- Futuristic hover vehicle
+- Extreme speed
+- Advanced maneuverability
+- Low durability
+
 ## Implementation Plan
 
 ### Phase 1: Core Vehicle Mechanics

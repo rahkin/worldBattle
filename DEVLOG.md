@@ -523,3 +523,25 @@ Next Steps:
 - Implement remaining 4 weapon systems
 - Add damage effects
 - Implement vehicle destruction mechanics
+
+## [Latest] - Enhanced Junkyard King Weapon System
+- Increased projectile speed to 150 m/s (25% range increase)
+- Implemented 5-projectile spread pattern
+- Added controlled circular spread for better accuracy
+- Enhanced muzzle flash effects
+- Fixed projectile system initialization
+- Improved firing controls with mouse input
+
+## [Previous] Vehicle Damage System
+- Added visual damage effects
+- Implemented health tracking
+- Added respawn system
+- Created damage thresholds
+- Added recovery cooldown
+- 10-second respawn timer after destruction
+
+## [Older] Initial Implementation
+- Basic vehicle physics
+- Multiple vehicle types
+- Simple controls
+- Basic collision detection

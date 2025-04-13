@@ -129,7 +129,12 @@ A 3D vehicle combat game built with Three.js and CANNON.js.
 - [x] Power-up system (Health, Speed, Overcharge)
 - [x] Resupply system (ammo refill with cooldown)
 - [x] Day/Night system (24-hour cycle, lighting, headlights)
-- [ ] Weather system (Clear, Rain, Fog, Storm)
+- [x] Weather system (Clear, Cloudy, Foggy, Storm)
+  - Dynamic cloud generation and movement
+  - Realistic fog effects
+  - Weather transitions
+  - Time-of-day lighting effects on clouds
+  - Automatic weather cycling
 - [ ] Sound effects using Howler.js
 - [ ] Custom ECS implementation for game logic
 

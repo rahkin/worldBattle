@@ -624,3 +624,14 @@ Next Steps:
 - Multiple vehicle types
 - Simple controls
 - Basic collision detection
+
+### 2025-04-15
+- Completed ammo power-up system:
+  - Fixed ammo power-up collection and removal
+  - Implemented proper cleanup of power-up components
+  - Added detailed logging for debugging
+  - Ensured power-ups properly respawn after collection
+  - Fixed multiple collection bug
+  - Added proper disposal of Three.js resources
+  - Enhanced power-up removal process
+  - Improved collision detection handling

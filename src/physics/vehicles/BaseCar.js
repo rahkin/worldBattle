@@ -5,11 +5,14 @@ import { VehicleDamageSystem } from '../VehicleDamageSystem.js';
 
 export class BaseCar {
     constructor(world, scene, options = {}) {
+        console.log('Initializing BaseCar with options:', {
+            type: options.type,
+            maxHealth: options.maxHealth,
+            damageResistance: options.damageResistance
+        });
+
         this.world = world;
         this.scene = scene;
-        this.options = options;
-
-        // Default parameters (can be overridden per car)
         this.options = Object.assign({
             width: 1.0,
             height: 0.5,
@@ -36,15 +39,63 @@ export class BaseCar {
         this.recoveryCooldownTime = 3; // 3 seconds cooldown
         this.canRecover = true;
 
+        // Add power-up collision material
+        this.powerUpMaterial = new CANNON.Material('vehicleMaterial');
+        this.powerUpContactMaterial = new CANNON.ContactMaterial(
+            this.powerUpMaterial,
+            new CANNON.Material('powerUpMaterial'),
+            {
+                friction: 0.0,
+                restitution: 0.0
+            }
+        );
+        world.addContactMaterial(this.powerUpContactMaterial);
+
+        // Mine system
+        this.mines = new Set();
+        this.mineDeployTimer = 0;
+        this.mineDeployCooldown = 2000; // 2 seconds between mines
+        this.maxMines = 5; // Maximum number of active mines per vehicle
+        this.isLookingBack = false;
+
         // Create the car first
         this._createCar();
 
         // Initialize damage system after car is created
         this.damageSystem = new VehicleDamageSystem(this, this.scene, {
-            maxHealth: this.options.maxHealth || 100,
-            damageResistance: this.options.damageResistance || 1.0,
-            recoveryCooldown: this.options.recoveryCooldown || 3.0
+            maxHealth: this.options.maxHealth,
+            damageResistance: this.options.damageResistance,
+            recoveryCooldown: this.options.recoveryCooldown
         });
+
+        this.id = options.id || Math.random().toString(36).substr(2, 9);
+        this.type = options.type || 'base';
+        this.health = this.options.maxHealth;
+        this.maxHealth = this.options.maxHealth;
+        
+        // Initialize ammo based on vehicle type
+        this.isHeavyVehicle = ['tank', 'ironclad', 'junkyardking'].includes(this.type.toLowerCase());
+        this.ammo = this.isHeavyVehicle ? 200 : 500;
+        
+        // Initialize stats with durability
+        this.stats = {
+            speed: options.stats?.speed || 5,
+            handling: options.stats?.handling || 5,
+            durability: options.stats?.durability || 5
+        };
+        
+        console.log('BaseCar initialization complete:', {
+            id: this.id,
+            type: this.type,
+            health: this.health,
+            maxHealth: this.maxHealth,
+            stats: this.stats,
+            hasDamageSystem: !!this.damageSystem,
+            damageSystemHealth: this.damageSystem?.currentHealth
+        });
+
+        // Create or update health bar
+        this.updateHealthBar(1.0);
     }
 
     _createCar() {
@@ -60,6 +111,9 @@ export class BaseCar {
         chassisBody.linearDamping = 0.1;   // Reduced from 0.2
         chassisBody.shapeOffsets[0].set(0, -0.1, 0); // Slightly lower center of mass
         chassisBody.updateMassProperties();
+
+        // Store reference to this vehicle instance in the chassis body's userData
+        chassisBody.userData = { vehicle: this };
 
         // Raycast Vehicle
         this._vehicle = new CANNON.RaycastVehicle({
@@ -259,6 +313,29 @@ export class BaseCar {
             if (this.recoveryCooldown <= 0) {
                 this.canRecover = true;
             }
+        }
+
+        // Check for power-up collisions
+        if (this.game && this.game.powerUpSystem) {
+            for (const [powerUpId, powerUp] of this.game.powerUpSystem.powerUps) {
+                const distance = this._vehicle.chassisBody.position.distanceTo(powerUp.body.position);
+                if (distance < 1.0) { // Collision radius
+                    this.game.handlePowerUpCollision(this, powerUpId);
+                }
+            }
+        }
+
+        // Update mines
+        for (const mine of this.mines) {
+            mine.update();
+            if (mine.isExploded) {
+                this.mines.delete(mine);
+            }
+        }
+
+        // Update mine deploy timer
+        if (this.mineDeployTimer > 0) {
+            this.mineDeployTimer -= deltaTime;
         }
     }
 
@@ -476,6 +553,132 @@ export class BaseCar {
         // Reset damage system
         if (this.damageSystem) {
             this.damageSystem.reset();
+        }
+    }
+
+    // Add ammo management methods
+    getAmmo() {
+        return this.ammo;
+    }
+
+    useAmmo(amount = 1) {
+        if (this.ammo >= amount) {
+            this.ammo -= amount;
+            return true;
+        }
+        return false;
+    }
+
+    addAmmo(amount) {
+        this.ammo += amount;
+        console.log(`Added ${amount} ammo to ${this.type}. New total: ${this.ammo}`);
+    }
+
+    deployMine() {
+        if (this.mineDeployTimer > 0 || this.mines.size >= this.maxMines || !this.isLookingBack) {
+            return false;
+        }
+
+        // Calculate spawn position behind vehicle
+        const direction = new THREE.Vector3();
+        this._vehicle.chassisBody.quaternion.vmult(new CANNON.Vec3(0, 0, 1), direction);
+        const spawnPosition = new CANNON.Vec3(
+            this._vehicle.chassisBody.position.x - direction.x * 3,
+            this._vehicle.chassisBody.position.y - 0.5, // Slightly below vehicle
+            this._vehicle.chassisBody.position.z - direction.z * 3
+        );
+
+        // Create new mine
+        const mine = new Mine(this.world, this.scene, spawnPosition, {
+            damage: 75,
+            radius: 5,
+            lifetime: 30000 // 30 seconds
+        });
+
+        // Add to mines set and start cooldown
+        this.mines.add(mine);
+        this.mineDeployTimer = this.mineDeployCooldown;
+
+        console.log('Mine deployed:', {
+            position: spawnPosition,
+            activeMines: this.mines.size,
+            cooldown: this.mineDeployCooldown
+        });
+
+        return true;
+    }
+
+    setLookingBack(isLooking) {
+        this.isLookingBack = isLooking;
+    }
+
+    cleanup() {
+        // ... existing cleanup code ...
+
+        // Cleanup mines
+        for (const mine of this.mines) {
+            mine.cleanup();
+        }
+        this.mines.clear();
+    }
+
+    updateHealthBar(healthPercent) {
+        // Find the top health bar element
+        const healthBar = document.querySelector('.health-bar-fill');
+        if (healthBar) {
+            const percentage = Math.max(0, Math.min(100, healthPercent * 100));
+            healthBar.style.width = `${percentage}%`;
+            
+            // Color interpolation from red to yellow to green
+            let color;
+            if (percentage > 50) {
+                // Interpolate from yellow to green
+                const g = Math.floor(255);
+                const r = Math.floor(255 * (1 - (percentage - 50) / 50));
+                color = `rgb(${r}, ${g}, 0)`;
+            } else {
+                // Interpolate from red to yellow
+                const r = Math.floor(255);
+                const g = Math.floor(255 * (percentage / 50));
+                color = `rgb(${r}, ${g}, 0)`;
+            }
+            healthBar.style.backgroundColor = color;
+        }
+    }
+
+    takeDamage(amount) {
+        console.log('takeDamage called with:', {
+            amount,
+            currentHealth: this.health,
+            hasDamageSystem: !!this.damageSystem,
+            damageSystemHealth: this.damageSystem?.currentHealth,
+            stats: this.stats
+        });
+
+        if (!this.damageSystem) {
+            console.error('No damage system available!');
+            return;
+        }
+
+        // Apply damage through the damage system
+        this.damageSystem.applyDamage(amount);
+        
+        // Update our health to match the damage system
+        this.health = this.damageSystem.currentHealth;
+        
+        // Update health bar
+        this.updateHealthBar(this.health / this.maxHealth);
+        
+        console.log('Damage applied:', {
+            newHealth: this.health,
+            damageSystemHealth: this.damageSystem.currentHealth,
+            isDestroyed: this.health <= 0
+        });
+
+        // Handle destruction
+        if (this.health <= 0) {
+            console.log('Vehicle destroyed');
+            this.damageSystem.isDestroyed = true;
         }
     }
 } 

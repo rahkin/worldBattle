@@ -212,34 +212,35 @@ A 3D vehicle combat game built with Three.js and CANNON.js.
   - Priority scheduling
 
 ## Project Structure
-
 ```
-src/
-├── core/
-│   ├── Game.js              # Main game loop and state
-│   ├── InputManager.js      # Input handling
-│   ├── GameLoop.js         # Game timing
-│   └── DamageTest.js       # Testing environment
-├── physics/
-│   ├── PhysicsWorld.js     # Physics simulation
-│   ├── VehicleDamageSystem.js     # Vehicle damage handling
-│   └── vehicles/
-│       ├── BaseCar.js      # Base vehicle class
-│       ├── MuscleCar.js    # Muscle car implementation
-│       ├── Scorpion.js     # Scorpion implementation
-│       ├── Drone.js        # Drone implementation
-│       ├── JunkyardKing.js # Junkyard King implementation
-│       ├── Ironclad.js     # Ironclad implementation
-│       └── TestVehicle.js  # Test vehicle
-├── rendering/
-│   ├── SceneManager.js     # Scene management
-│   ├── CameraManager.js    # Camera control
-│   ├── HealthDisplay.js    # HUD elements
-│   └── VehicleSelector.js  # Vehicle selection UI
-└── utils/
-    ├── Constants.js        # Game constants
-    ├── Materials.js        # Material definitions
-    └── Debug.js           # Debug utilities
+worldBattle/
+├── src/
+│   ├── core/
+│   │   ├── Game.js
+│   │   ├── InputManager.js
+│   │   └── PowerUpSystem.js
+│   ├── input/
+│   │   └── InputState.js
+│   ├── physics/
+│   │   ├── MineSystem.js
+│   │   ├── VehicleDamageSystem.js
+│   │   └── vehicles/
+│   │       ├── BaseCar.js
+│   │       ├── Drone.js
+│   │       ├── Ironclad.js
+│   │       ├── JunkyardKing.js
+│   │       ├── MuscleCar.js
+│   │       ├── Scorpion.js
+│   │       └── Tank.js
+│   ├── utils/
+│   │   └── GeometryUtils.js
+│   └── index.js
+├── public/
+│   ├── index.html
+│   └── styles.css
+├── DEVLOG.md
+├── README.md
+└── package.json
 ```
 
 ## Development
@@ -391,3 +392,16 @@ Key Features:
 - Muzzle flash effects
 - Long-range projectiles (1600 units)
 - High accuracy with minimal spread 
+
+## Features
+- [x] Vehicle damage system with health display
+- [x] Mine deployment and explosion system
+- [x] Vehicle recovery system
+- [x] Power-up collection system
+- [ ] Day/Night system (24-hour cycle, lighting, headlights)
+- [ ] Weather effects
+- [ ] Multiplayer support
+- [ ] Additional vehicle types
+- [ ] More environmental obstacles
+- [ ] Score tracking
+- [ ] Leaderboard system 

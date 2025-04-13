@@ -35,6 +35,12 @@ A 3D vehicle combat game built with Three.js and CANNON.js.
   - Recovery system with damage penalty
   - Safe position detection for vehicle resets
   - 10-second respawn timer after destruction
+  - Dynamic day/night cycle:
+    - Real-time based lighting
+    - Smooth transitions between day and night
+    - Time zone support for future Mapbox integration
+    - Automatic headlight control
+    - Dynamic sky colors and fog effects
 
 - [x] Power-up system with visual effects and HUD
   - Health restoration
@@ -122,7 +128,7 @@ A 3D vehicle combat game built with Three.js and CANNON.js.
 - [x] Weapon system (Dual Cannons, projectile firing)
 - [x] Power-up system (Health, Speed, Overcharge)
 - [x] Resupply system (ammo refill with cooldown)
-- [ ] Day/Night system (24-hour cycle, lighting, headlights)
+- [x] Day/Night system (24-hour cycle, lighting, headlights)
 - [ ] Weather system (Clear, Rain, Fog, Storm)
 - [ ] Sound effects using Howler.js
 - [ ] Custom ECS implementation for game logic

@@ -212,6 +212,7 @@ A 3D vehicle combat game built with Three.js and CANNON.js.
   - Priority scheduling
 
 ## Project Structure
+
 ```
 worldBattle/
 ├── src/
@@ -226,21 +227,27 @@ worldBattle/
 │   │   ├── VehicleDamageSystem.js
 │   │   └── vehicles/
 │   │       ├── BaseCar.js
-│   │       ├── Drone.js
-│   │       ├── Ironclad.js
-│   │       ├── JunkyardKing.js
 │   │       ├── MuscleCar.js
+│   │       ├── Tank.js
+│   │       ├── Drone.js
 │   │       ├── Scorpion.js
-│   │       └── Tank.js
-│   ├── utils/
-│   │   └── GeometryUtils.js
-│   └── index.js
-├── public/
-│   ├── index.html
-│   └── styles.css
-├── DEVLOG.md
+│   │       ├── Ironclad.js
+│   │       └── JunkyardKing.js
+│   ├── ui/
+│   │   ├── HealthBar.js
+│   │   └── PowerUpDisplay.js
+│   └── utils/
+│       └── GeometryUtils.js
+├── assets/
+│   ├── models/
+│   ├── textures/
+│   └── sounds/
+├── styles/
+│   └── main.css
+├── index.html
+├── package.json
 ├── README.md
-└── package.json
+└── DEVLOG.md
 ```
 
 ## Development
@@ -392,16 +399,3 @@ Key Features:
 - Muzzle flash effects
 - Long-range projectiles (1600 units)
 - High accuracy with minimal spread 
-
-## Features
-- [x] Vehicle damage system with health display
-- [x] Mine deployment and explosion system
-- [x] Vehicle recovery system
-- [x] Power-up collection system
-- [ ] Day/Night system (24-hour cycle, lighting, headlights)
-- [ ] Weather effects
-- [ ] Multiplayer support
-- [ ] Additional vehicle types
-- [ ] More environmental obstacles
-- [ ] Score tracking
-- [ ] Leaderboard system 

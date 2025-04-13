@@ -45,24 +45,17 @@ export class Ironclad extends BaseCar {
             spread: 0.001       // Minimal spread for accuracy
         };
 
-        // Turret properties
-        this.turret = {
-            base: null,
-            rotation: null,  // Will be created in _createTurret()
-            barrel: null,
-            targetRotation: 0,
-            rotationSpeed: Math.PI, // Radians per second
-            currentRotation: 0,
-            elevation: 0,        // Current elevation angle
-            maxElevation: Math.PI / 4,  // 45 degrees up
-            minElevation: -Math.PI / 6  // -30 degrees down
+        // Fixed gun properties
+        this.gun = {
+            mesh: null,
+            barrel: null
         };
 
         // Create vehicle components in the correct order
         this._createDetailedChassis();
         this._addArmorPlating();
         this._enhanceWheels();
-        this._createTurret();
+        this._createFixedGun();
 
         // Adjust physics body properties after vehicle is created
         if (this.vehicle) {
@@ -80,92 +73,36 @@ export class Ironclad extends BaseCar {
         }
     }
 
-    _createTurret() {
-        // Clear any existing turret components
-        if (this.turret.base) {
-            this.chassisMesh.remove(this.turret.base);
-            this.turret.base = null;
-        }
-        if (this.turret.rotation) {
-            this.chassisMesh.remove(this.turret.rotation);
-            this.turret.rotation = null;
-        }
-
-        const turretMaterial = new THREE.MeshPhongMaterial({
-            color: this.options.color,
-            metalness: 0.8,
-            roughness: 0.3
-        });
-
+    _createFixedGun() {
         const darkMetal = new THREE.MeshPhongMaterial({
             color: 0x1a1a1a,
             metalness: 0.9,
             roughness: 0.2
         });
 
-        // Create turret base
-        const baseGeometry = new THREE.CylinderGeometry(0.6, 0.7, 0.3, 8);
-        this.turret.base = new THREE.Mesh(baseGeometry, turretMaterial);
-        this.turret.base.position.set(0, this.options.height * 1.2, 0);
-
-        // Create turret rotation group
-        this.turret.rotation = new THREE.Group();
-        this.turret.rotation.position.copy(this.turret.base.position);
-
-        // Create main turret body
-        const turretGeometry = new THREE.BoxGeometry(1.2, 0.4, 1.4);
-        const turretBody = new THREE.Mesh(turretGeometry, turretMaterial);
-        turretBody.position.set(0, 0.2, 0);
-        this.turret.rotation.add(turretBody);
+        // Create gun mount
+        const mountGeometry = new THREE.BoxGeometry(0.8, 0.3, 0.6);
+        this.gun.mesh = new THREE.Group();
+        const mount = new THREE.Mesh(mountGeometry, darkMetal);
+        mount.position.set(0, this.options.height * 1.2, -0.4);
+        this.gun.mesh.add(mount);
 
         // Create gun barrel
         const barrelGeometry = new THREE.CylinderGeometry(0.1, 0.12, 2.0, 8);
         barrelGeometry.rotateZ(Math.PI / 2);
-        this.turret.barrel = new THREE.Mesh(barrelGeometry, darkMetal);
-        this.turret.barrel.position.set(0, 0.2, -1.0);
-        this.turret.rotation.add(this.turret.barrel);
+        this.gun.barrel = new THREE.Mesh(barrelGeometry, darkMetal);
+        this.gun.barrel.position.set(0, this.options.height * 1.2, -1.4);
+        this.gun.mesh.add(this.gun.barrel);
 
         // Add muzzle brake
         const muzzleGeometry = new THREE.CylinderGeometry(0.15, 0.15, 0.3, 8);
         muzzleGeometry.rotateZ(Math.PI / 2);
         const muzzle = new THREE.Mesh(muzzleGeometry, darkMetal);
-        muzzle.position.set(0, 0.2, -2.0);
-        this.turret.rotation.add(muzzle);
-
-        // Add turret details
-        this._addTurretDetails();
+        muzzle.position.set(0, this.options.height * 1.2, -2.4);
+        this.gun.mesh.add(muzzle);
 
         // Add to chassis
-        this.chassisMesh.add(this.turret.base);
-        this.chassisMesh.add(this.turret.rotation);
-
-        // Reset turret rotation
-        this.turret.currentRotation = 0;
-        this.turret.rotation.rotation.y = 0;
-    }
-
-    _addTurretDetails() {
-        const detailMaterial = new THREE.MeshPhongMaterial({
-            color: 0x2a2a2a,
-            metalness: 0.7,
-            roughness: 0.4
-        });
-
-        // Add side armor plates
-        const sideArmorGeo = new THREE.BoxGeometry(0.1, 0.3, 1.2);
-        [-0.6, 0.6].forEach(x => {
-            const sideArmor = new THREE.Mesh(sideArmorGeo, detailMaterial);
-            sideArmor.position.set(x, 0.2, 0);
-            this.turret.rotation.add(sideArmor);
-        });
-
-        // Add viewport slits
-        const slitGeo = new THREE.BoxGeometry(0.3, 0.05, 0.02);
-        [-0.2, 0, 0.2].forEach(x => {
-            const slit = new THREE.Mesh(slitGeo, detailMaterial);
-            slit.position.set(x, 0.3, -0.7);
-            this.turret.rotation.add(slit);
-        });
+        this.chassisMesh.add(this.gun.mesh);
     }
 
     update(deltaTime) {
@@ -178,52 +115,35 @@ export class Ironclad extends BaseCar {
             this.projectileSystem.update(deltaTime);
         }
         
-        // Update turret rotation based on mouse position
-        if (this.turret?.rotation && this.inputManager) {
-            const mousePos = this.inputManager.getMousePosition();
-            if (!mousePos) return;  // Skip if no mouse position
-            
-            // Convert mouse position to world space angle
-            const worldPos = this.vehicle.chassisBody.position;
-            const targetAngle = Math.atan2(
-                mousePos.x - worldPos.x,
-                mousePos.z - worldPos.z
-            );
-            
-            // Calculate shortest rotation path
-            let deltaRotation = targetAngle - this.turret.currentRotation;
-            if (deltaRotation > Math.PI) deltaRotation -= Math.PI * 2;
-            if (deltaRotation < -Math.PI) deltaRotation += Math.PI * 2;
-            
-            // Apply rotation with speed limit
-            const maxRotation = this.turret.rotationSpeed * deltaTime;
-            const rotation = Math.max(-maxRotation, Math.min(maxRotation, deltaRotation));
-            
-            this.turret.currentRotation += rotation;
-            this.turret.rotation.rotation.y = this.turret.currentRotation;
+        // Handle firing input
+        if (this.inputManager && this.inputManager.isMouseButtonPressed(0)) {
+            this.fireCannon();
         }
     }
 
-    updateVisuals() {
-        super.updateVisuals();
-    }
-
     fireCannon() {
-        if (!this.turret?.rotation || !this.projectileSystem) return;  // Skip if not ready
+        if (!this.gun?.mesh || !this.projectileSystem) return;  // Skip if not ready
         
         const now = Date.now();
         if (now - this.weapon.lastShot < this.weapon.fireRate) return;
         
-        // Get world position and orientation of the barrel tip
-        const barrelTip = new THREE.Vector3(0, 0.2, -2.0);
-        const worldMatrix = this.turret.rotation.matrixWorld.clone();
+        // Check ammo before firing
+        if (!this.useAmmo(1)) {
+            console.log("Cannot fire: no ammo remaining");
+            return;
+        }
+        
+        // Get world position of the barrel tip
+        const barrelTip = new THREE.Vector3(0, this.options.height * 1.2, -2.4);
+        const worldMatrix = this.chassisMesh.matrixWorld.clone();
         barrelTip.applyMatrix4(worldMatrix);
         
-        // Calculate firing direction based on turret's forward direction
+        // Calculate firing direction based on vehicle's forward direction
         const direction = new THREE.Vector3(0, 0, -1);
         const rotationMatrix = new THREE.Matrix4();
         rotationMatrix.extractRotation(worldMatrix);
         direction.applyMatrix4(rotationMatrix);
+        direction.normalize();
         
         // Add spread
         direction.x += (Math.random() - 0.5) * this.weapon.spread;
@@ -241,13 +161,6 @@ export class Ironclad extends BaseCar {
         
         this.weapon.lastShot = now;
         this.createMuzzleFlash();
-
-        // Debug output
-        console.log('Fired projectile:', {
-            position: barrelTip.toArray(),
-            direction: direction.toArray(),
-            time: now
-        });
     }
 
     createMuzzleFlash() {
@@ -270,8 +183,8 @@ export class Ironclad extends BaseCar {
         });
 
         const flash = new THREE.Mesh(flashGeometry, flashMaterial);
-        flash.position.set(0, 0.2, -2.2); // Slightly in front of barrel
-        this.turret.rotation.add(flash);
+        flash.position.set(0, this.options.height * 1.2, -2.6); // Slightly in front of barrel
+        this.gun.mesh.add(flash);
 
         // Animate the flash
         let scale = 1;
@@ -283,7 +196,7 @@ export class Ironclad extends BaseCar {
             if (scale > 0.1) {
                 requestAnimationFrame(animate);
             } else {
-                this.turret.rotation.remove(flash);
+                this.gun.mesh.remove(flash);
             }
         };
         requestAnimationFrame(animate);
@@ -467,9 +380,5 @@ export class Ironclad extends BaseCar {
 
             wheelMesh.position.y = this.options.wheelRadius;
         });
-    }
-
-    updateTurret() {
-        return; // No-op
     }
 } 

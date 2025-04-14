@@ -57,6 +57,14 @@ A 3D vehicle combat game built with Three.js and CANNON.js.
   - Visual collection effects
   - Top-right HUD display with timers
   - Duration extension on duplicate collection
+- [x] Sound system using Howler.js
+  - Category-based volume control
+  - Spatial audio support
+  - Sound pooling for performance
+  - Vehicle-specific sounds
+  - Weapon and power-up effects
+  - Environmental audio
+  - UI feedback sounds
 
 ## Vehicle Types
 
@@ -255,6 +263,16 @@ worldBattle/
 │   ├── ui/
 │   │   ├── HealthBar.js
 │   │   └── PowerUpDisplay.js
+│   ├── audio/
+│   │   ├── SoundManager.js
+│   │   ├── SoundExample.js
+│   │   └── sounds/
+│   │       ├── vehicles/
+│   │       ├── weapons/
+│   │       ├── powerups/
+│   │       ├── environment/
+│   │       ├── damage/
+│   │       └── ui/
 │   └── utils/
 │       └── GeometryUtils.js
 ├── assets/

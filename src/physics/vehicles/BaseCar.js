@@ -571,7 +571,19 @@ export class BaseCar {
     }
 
     deployMine() {
-        if (this.mineDeployTimer > 0 || this.mines.size >= this.maxMines || !this.isLookingBack) {
+        // Check cooldown, mine limit, and looking back state
+        if (this.mineDeployTimer > 0) {
+            console.log('Mine deployment on cooldown');
+            return false;
+        }
+        
+        if (this.mines.size >= this.maxMines) {
+            console.log('Maximum mines deployed');
+            return false;
+        }
+        
+        if (!this.isLookingBack) {
+            console.log('Cannot deploy mine: not looking back');
             return false;
         }
 

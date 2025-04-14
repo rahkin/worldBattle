@@ -109,6 +109,8 @@ export class Game {
         this.physicsWorld.world.addEventListener('beginContact', (event) => {
             this.mineSystem.handleCollision(event);
         });
+
+        this.setupUI();
     }
 
     async init() {
@@ -119,8 +121,8 @@ export class Game {
             console.log('Initializing scene manager...');
             this.sceneManager.init();
 
-            console.log('Initializing time system...');
-            this.timeSystem = new TimeSystem(this.sceneManager.scene);
+            // Remove duplicate time system initialization
+            console.log('Setting up time system...');
             this.sceneManager.scene.timeSystem = this.timeSystem;
 
             console.log('Initializing physics world...');
@@ -206,6 +208,9 @@ export class Game {
     }
 
     update(deltaTime) {
+        // Update time system first to ensure correct lighting for the frame
+        this.timeSystem.updateTime();
+        
         // Handle input first
         this.handleInput(deltaTime);
         this.inputManager.update();
@@ -216,7 +221,6 @@ export class Game {
         // Update core systems
         this.cameraManager.update(deltaTime);
         this.vehicleFactory.update(deltaTime);
-        this.timeSystem.updateTime();
         this.weatherSystem.update(deltaTime);
         
         // Update debug visualization
@@ -278,6 +282,12 @@ export class Game {
             
             // Handle mine deployment
             if (this.inputState.deployMine && this.playerVehicle && this.mineSystem) {
+                // Only deploy if looking back
+                if (!this.inputState.lookingBack) {
+                    console.log('Cannot deploy mine: not looking back');
+                    return;
+                }
+                
                 console.log('Attempting to deploy mine');
                 
                 // Get vehicle position and orientation
@@ -303,14 +313,14 @@ export class Game {
                 }
                 
                 // Calculate mine position:
-                // - 2 units behind vehicle
+                // - 2 units behind vehicle (using correct backward direction)
                 // - Above the vehicle's top (vehicle position + half height + extra clearance)
                 // - Apply a small downward velocity when deploying
                 const deployHeight = vehiclePosition.y + (vehicleHeight / 2) + 1;
                 const minePosition = new CANNON.Vec3(
-                    vehiclePosition.x - backward.x * 2,
+                    vehiclePosition.x - backward.x * 2, // Changed from + to - to match backward direction
                     deployHeight,
-                    vehiclePosition.z - backward.z * 2
+                    vehiclePosition.z - backward.z * 2  // Changed from + to - to match backward direction
                 );
 
                 console.log('Creating mine at position:', {
@@ -648,6 +658,12 @@ export class Game {
 
         // Handle mine deployment
         if (this.inputState.deployMine && this.playerVehicle && this.mineSystem) {
+            // Only deploy if looking back
+            if (!this.inputState.lookingBack) {
+                console.log('Cannot deploy mine: not looking back');
+                return;
+            }
+            
             console.log('Attempting to deploy mine');
             
             // Get vehicle position and orientation
@@ -673,14 +689,14 @@ export class Game {
             }
             
             // Calculate mine position:
-            // - 2 units behind vehicle
+            // - 2 units behind vehicle (using correct backward direction)
             // - Above the vehicle's top (vehicle position + half height + extra clearance)
             // - Apply a small downward velocity when deploying
             const deployHeight = vehiclePosition.y + (vehicleHeight / 2) + 1;
             const minePosition = new CANNON.Vec3(
-                vehiclePosition.x - backward.x * 2,
+                vehiclePosition.x - backward.x * 2, // Changed from + to - to match backward direction
                 deployHeight,
-                vehiclePosition.z - backward.z * 2
+                vehiclePosition.z - backward.z * 2  // Changed from + to - to match backward direction
             );
 
             console.log('Creating mine at position:', {
@@ -1006,5 +1022,25 @@ export class Game {
     // Add method to get time of day
     getTimeOfDay() {
         return this.timeSystem.getTimeOfDay();
+    }
+
+    setupUI() {
+        // Create time display element
+        this.timeDisplay = document.createElement('div');
+        this.timeDisplay.style.position = 'absolute';
+        this.timeDisplay.style.top = '10px';
+        this.timeDisplay.style.right = '10px';
+        this.timeDisplay.style.color = 'white';
+        this.timeDisplay.style.fontFamily = 'Arial, sans-serif';
+        this.timeDisplay.style.fontSize = '16px';
+        this.timeDisplay.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
+        this.timeDisplay.style.padding = '5px 10px';
+        this.timeDisplay.style.borderRadius = '5px';
+        document.body.appendChild(this.timeDisplay);
+
+        // Update time display every second
+        setInterval(() => {
+            this.timeDisplay.textContent = this.timeSystem.getCurrentTimeString();
+        }, 1000);
     }
 } 

@@ -5,13 +5,16 @@
 export class AmmoDisplay {
     /**
      * Creates a new AmmoDisplay instance.
-     * Initializes a simple text display showing the ammo count.
+     * Initializes a display with an icon and ammo count.
      */
     constructor() {
         this.element = document.createElement('div');
         this.element.id = 'ammo-display';
         this.element.className = 'hud-element';
-        this.element.textContent = 'Ammo: 0';
+        this.element.innerHTML = `
+            <div class="ammo-icon">🔫</div>
+            <div class="ammo-count">0</div>
+        `;
         document.getElementById('game-ui').appendChild(this.element);
     }
 
@@ -20,7 +23,8 @@ export class AmmoDisplay {
      * @param {number} ammo - Current ammo count
      */
     updateAmmo(ammo) {
-        this.element.textContent = `Ammo: ${ammo}`;
+        const countElement = this.element.querySelector('.ammo-count');
+        countElement.textContent = ammo;
     }
 
     /**
@@ -28,7 +32,7 @@ export class AmmoDisplay {
      * @param {boolean} visible - Whether the display should be visible
      */
     setVisible(visible) {
-        this.element.style.display = visible ? 'block' : 'none';
+        this.element.style.display = visible ? 'flex' : 'none';
     }
 
     /**

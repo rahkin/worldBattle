@@ -4,9 +4,10 @@ export class HealthBar {
         this.element.id = 'health-bar';
         this.element.className = 'hud-element';
         this.element.innerHTML = `
-            <div class="health-bar-fill"></div>
-            <div class="health-text">Health: 100%</div>
-            <div class="respawn-counter" style="display: none;">Respawn in: 10</div>
+            <div class="health-bar-container">
+                <div class="health-bar-fill"></div>
+                <div class="health-text">100%</div>
+            </div>
         `;
         document.getElementById('game-ui').appendChild(this.element);
     }
@@ -17,20 +18,27 @@ export class HealthBar {
         const textElement = this.element.querySelector('.health-text');
         
         fillElement.style.width = `${percentage}%`;
-        textElement.textContent = `Health: ${Math.round(percentage)}%`;
+        textElement.textContent = `${Math.round(percentage)}%`;
 
-        // Color interpolation from green to red
+        // Color transitions based on health percentage
         let color;
-        if (percentage > 50) {
-            const g = 255;
-            const r = Math.floor(255 * (1 - (percentage - 50) / 50));
-            color = `rgb(${r}, ${g}, 0)`;
+        if (percentage > 75) {
+            color = '#2ecc71'; // Healthy green
+        } else if (percentage > 50) {
+            color = '#f1c40f'; // Warning yellow
+        } else if (percentage > 25) {
+            color = '#e67e22'; // Orange
         } else {
-            const r = 255;
-            const g = Math.floor(255 * (percentage / 50));
-            color = `rgb(${r}, ${g}, 0)`;
+            color = '#e74c3c'; // Critical red
         }
+        
         fillElement.style.backgroundColor = color;
+        // Add glow effect for low health
+        if (percentage <= 25) {
+            fillElement.style.boxShadow = `0 0 10px ${color}`;
+        } else {
+            fillElement.style.boxShadow = 'none';
+        }
     }
 
     setVisible(visible) {
@@ -39,18 +47,20 @@ export class HealthBar {
 
     showRespawnCounter(seconds) {
         const counterElement = this.element.querySelector('.respawn-counter');
+        if (!counterElement) {
+            const counter = document.createElement('div');
+            counter.className = 'respawn-counter';
+            this.element.appendChild(counter);
+        }
         counterElement.style.display = 'block';
-        counterElement.textContent = `Respawn in: ${Math.ceil(seconds)}`;
-    }
-
-    updateRespawnCounter(seconds) {
-        const counterElement = this.element.querySelector('.respawn-counter');
         counterElement.textContent = `Respawn in: ${Math.ceil(seconds)}`;
     }
 
     hideRespawnCounter() {
         const counterElement = this.element.querySelector('.respawn-counter');
-        counterElement.style.display = 'none';
+        if (counterElement) {
+            counterElement.style.display = 'none';
+        }
     }
 
     cleanup() {

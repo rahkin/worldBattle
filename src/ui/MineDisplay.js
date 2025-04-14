@@ -12,8 +12,9 @@ export class MineDisplay {
         this.element.id = 'mine-display';
         this.element.className = 'hud-element';
         this.element.innerHTML = `
-            <div class="mine-icon"></div>
+            <div class="mine-icon">💣</div>
             <div class="mine-count">0</div>
+            <div class="mine-max">/ 5</div>
         `;
         document.getElementById('game-ui').appendChild(this.element);
     }
@@ -21,10 +22,22 @@ export class MineDisplay {
     /**
      * Updates the displayed mine count.
      * @param {number} count - Current number of available mines
+     * @param {number} maxCount - Maximum number of mines
      */
-    updateCount(count) {
+    updateCount(count, maxCount) {
         const countElement = this.element.querySelector('.mine-count');
+        const maxElement = this.element.querySelector('.mine-max');
         countElement.textContent = count;
+        maxElement.textContent = `/ ${maxCount}`;
+        
+        // Change color based on mine count
+        if (count === 0) {
+            this.element.style.color = '#ff4444';
+        } else if (count < maxCount) {
+            this.element.style.color = '#ffaa44';
+        } else {
+            this.element.style.color = '#ffffff';
+        }
     }
 
     /**
@@ -32,7 +45,7 @@ export class MineDisplay {
      * @param {boolean} visible - Whether the display should be visible
      */
     setVisible(visible) {
-        this.element.style.display = visible ? 'block' : 'none';
+        this.element.style.display = visible ? 'flex' : 'none';
     }
 
     /**

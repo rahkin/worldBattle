@@ -166,18 +166,32 @@ export class PowerUpDisplay {
 
     update(deltaTime) {
         // Update all active power-ups
-        for (const [type, info] of this.activePowerUps) {
-            const elapsed = Date.now() - info.startTime;
-            const remaining = Math.max(0, info.duration - elapsed);
-            const percent = (remaining / info.duration) * 100;
+        this.activePowerUps.forEach((powerUpInfo, type) => {
+            const elapsed = Date.now() - powerUpInfo.startTime;
+            const remaining = Math.max(0, powerUpInfo.duration - elapsed);
+            const percent = (remaining / powerUpInfo.duration) * 100;
 
-            info.timer.textContent = (remaining / 1000).toFixed(1) + 's';
-            info.progress.style.width = percent + '%';
+            powerUpInfo.timer.textContent = (remaining / 1000).toFixed(1) + 's';
+            powerUpInfo.progress.style.width = percent + '%';
 
             if (remaining <= 0) {
                 this.removePowerUp(type);
             }
-        }
+        });
+    }
+
+    clear() {
+        console.log('Clearing power-up display...');
+        
+        // Remove all active power-ups
+        this.activePowerUps.forEach((powerUpInfo, type) => {
+            this.removePowerUp(type);
+        });
+        
+        // Clear the power-ups map
+        this.activePowerUps.clear();
+        
+        console.log('Power-up display cleared');
     }
 
     cleanup() {

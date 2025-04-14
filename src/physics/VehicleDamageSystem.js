@@ -2,9 +2,10 @@ import * as THREE from 'three';
 import * as CANNON from 'cannon-es';
 
 export class VehicleDamageSystem {
-    constructor(vehicle, scene) {
+    constructor(vehicle, scene, world) {
         this.vehicle = vehicle;
         this.scene = scene;
+        this.world = world;
         this.maxHealth = 100;
         this.currentHealth = this.maxHealth;
         this.damageThresholds = {
@@ -19,25 +20,32 @@ export class VehicleDamageSystem {
         this.recoveryCooldown = 0;
     }
 
-    applyDamage(amount, position = null, force = null) {
-        if (this.isDestroyed || this.isRespawning) return; // Don't apply damage if destroyed or respawning
-        
+    applyDamage(amount) {
+        if (this.isDestroyed) return;
+
         this.currentHealth = Math.max(0, this.currentHealth - amount);
-        console.log('Health after damage:', this.currentHealth);
-        
-        this._updateDamageState();
-        
-        // Use vehicle position if no impact position provided
-        const impactPosition = position || (this.vehicle._vehicle ? 
-            this.vehicle._vehicle.chassisBody.position.clone() : 
-            new CANNON.Vec3(0, 0, 0));
-            
-        this._createImpactEffect(impactPosition, force || 1);
-        
+        console.log('Vehicle damage applied:', {
+            amount: amount,
+            currentHealth: this.currentHealth,
+            maxHealth: this.maxHealth
+        });
+
         if (this.currentHealth <= 0 && !this.isDestroyed) {
-            console.log('Vehicle destroyed, triggering explosion');
             this.isDestroyed = true;
-            this._triggerExplosion();
+            console.log('Vehicle destroyed, triggering explosion');
+            
+            // Store position before any cleanup
+            const explosionPosition = this.vehicle._vehicle ? 
+                this.vehicle._vehicle.chassisBody.position.clone() : 
+                this.vehicle.chassisMesh.position.clone();
+
+            // Dispatch destroyed event first
+            window.dispatchEvent(new CustomEvent('vehicleDestroyed', {
+                detail: { vehicleId: this.vehicle.id }
+            }));
+
+            // Create explosion effect at stored position
+            this._createExplosionEffect(explosionPosition);
         }
     }
 
@@ -244,46 +252,144 @@ export class VehicleDamageSystem {
     }
 
     _triggerExplosion() {
+        if (!this.vehicle._vehicle) return;
+        
         console.log('Triggering explosion effect');
         
-        // Create explosion effect
-        const explosionGeometry = new THREE.SphereGeometry(2, 32, 32);
-        const explosionMaterial = new THREE.MeshPhongMaterial({
-            color: 0xff5500,
-            transparent: true,
-            opacity: 0.8
-        });
+        // Store the vehicle's position before cleanup
+        const explosionPosition = this.vehicle._vehicle.chassisBody.position.clone();
         
-        const explosion = new THREE.Mesh(explosionGeometry, explosionMaterial);
-        explosion.position.copy(this.vehicle.chassisMesh.position);
-        this.scene.add(explosion);
-        
-        // Animate explosion
-        let scale = 0;
-        const animate = () => {
-            scale += 0.1;
-            explosion.scale.set(scale, scale, scale);
-            explosion.material.opacity = Math.max(0, 0.8 - scale * 0.2);
-            
-            if (scale < 4) {
-                requestAnimationFrame(animate);
-            } else {
-                this.scene.remove(explosion);
-            }
-        };
-        animate();
-        
-        // Hide vehicle mesh
+        // Hide vehicle meshes first
         if (this.vehicle.chassisMesh) {
             this.vehicle.chassisMesh.visible = false;
         }
+        if (this.vehicle.wheelMeshes) {
+            this.vehicle.wheelMeshes.forEach(wheel => {
+                if (wheel) wheel.visible = false;
+            });
+        }
+
+        // Remove vehicle physics before explosion effect
+        if (this.vehicle._vehicle && this.world) {
+            // Remove wheel constraints first
+            if (this.vehicle._vehicle.wheelConstraints) {
+                this.vehicle._vehicle.wheelConstraints.forEach(constraint => {
+                    if (constraint && this.world.constraints.includes(constraint)) {
+                        this.world.removeConstraint(constraint);
+                    }
+                });
+            }
+
+            // Remove wheel bodies
+            if (this.vehicle._vehicle.wheels) {
+                this.vehicle._vehicle.wheels.forEach(wheel => {
+                    if (wheel.body && this.world.bodies.includes(wheel.body)) {
+                        this.world.removeBody(wheel.body);
+                    }
+                });
+            }
+
+            // Remove chassis body last
+            if (this.vehicle._vehicle.chassisBody && this.world.bodies.includes(this.vehicle._vehicle.chassisBody)) {
+                this.world.removeBody(this.vehicle._vehicle.chassisBody);
+            }
+        }
+
+        // Create explosion effect at stored position
+        this._createExplosionEffect(explosionPosition);
+    }
+
+    _createExplosionEffect(position) {
+        console.log('Creating explosion effect at position:', position);
         
-        // Hide wheel meshes
-        this.vehicle.wheelMeshes.forEach(wheel => {
-            if (wheel) wheel.visible = false;
+        // Create explosion geometry
+        const explosionGeometry = new THREE.SphereGeometry(0.5, 32, 32);
+        const explosionMaterial = new THREE.MeshBasicMaterial({
+            color: 0xff3300,
+            transparent: true,
+            opacity: 1
         });
         
-        console.log('Explosion effect complete');
+        this.explosionMesh = new THREE.Mesh(explosionGeometry, explosionMaterial);
+        this.explosionMesh.position.copy(position);
+        this.scene.add(this.explosionMesh);
+        
+        // Create shockwave effect
+        const shockwaveGeometry = new THREE.RingGeometry(0.1, 0.2, 32);
+        const shockwaveMaterial = new THREE.MeshBasicMaterial({
+            color: 0xff3300,
+            transparent: true,
+            opacity: 0.8,
+            side: THREE.DoubleSide
+        });
+        
+        this.shockwaveMesh = new THREE.Mesh(shockwaveGeometry, shockwaveMaterial);
+        this.shockwaveMesh.position.copy(position);
+        this.shockwaveMesh.rotation.x = -Math.PI / 2; // Align with ground
+        this.scene.add(this.shockwaveMesh);
+        
+        // Animate explosion
+        const startScale = 1;
+        const endScale = 4;
+        const duration = 800; // ms
+        const startTime = Date.now();
+        
+        const animateExplosion = () => {
+            const elapsed = Date.now() - startTime;
+            const progress = Math.min(elapsed / duration, 1);
+            
+            // Scale up explosion
+            const currentScale = startScale + (endScale - startScale) * progress;
+            this.explosionMesh.scale.set(currentScale, currentScale, currentScale);
+            
+            // Scale up shockwave
+            const shockwaveScale = currentScale * 2;
+            this.shockwaveMesh.scale.set(shockwaveScale, shockwaveScale, shockwaveScale);
+            
+            // Fade out
+            const opacity = 1 - progress;
+            this.explosionMesh.material.opacity = opacity;
+            this.shockwaveMesh.material.opacity = opacity * 0.8;
+            
+            if (progress < 1) {
+                requestAnimationFrame(animateExplosion);
+            } else {
+                // Cleanup after animation
+                if (this.explosionMesh && this.explosionMesh.parent) {
+                    this.scene.remove(this.explosionMesh);
+                    this.explosionMesh.geometry.dispose();
+                    this.explosionMesh.material.dispose();
+                }
+                if (this.shockwaveMesh && this.shockwaveMesh.parent) {
+                    this.scene.remove(this.shockwaveMesh);
+                    this.shockwaveMesh.geometry.dispose();
+                    this.shockwaveMesh.material.dispose();
+                }
+                console.log('Explosion effect complete');
+            }
+        };
+        
+        requestAnimationFrame(animateExplosion);
+    }
+
+    cleanup() {
+        console.log('Cleaning up damage system');
+        
+        // Remove explosion meshes if they exist
+        if (this.explosionMesh && this.explosionMesh.parent) {
+            this.scene.remove(this.explosionMesh);
+            this.explosionMesh.geometry.dispose();
+            this.explosionMesh.material.dispose();
+        }
+        if (this.shockwaveMesh && this.shockwaveMesh.parent) {
+            this.scene.remove(this.shockwaveMesh);
+            this.shockwaveMesh.geometry.dispose();
+            this.shockwaveMesh.material.dispose();
+        }
+        
+        // Clear references
+        this.explosionMesh = null;
+        this.shockwaveMesh = null;
     }
 
     update(deltaTime) {

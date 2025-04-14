@@ -83,38 +83,44 @@ export class Mine {
     }
 
     _setupCollisionEvents() {
-        // Store the callback so we can remove it later
         this.beginContactCallback = (event) => {
+            if (!this.isArmed || this.isExploded) return;
+
             const bodyA = event.bodyA;
             const bodyB = event.bodyB;
-            
-            // Check if either body is our mine and the other is a vehicle
-            if ((bodyA === this.body && bodyB.vehicleId) || 
-                (bodyB === this.body && bodyA.vehicleId)) {
-                // Get the vehicle that hit the mine
-                const vehicleBody = bodyA.vehicleId ? bodyA : bodyB;
-                
-                // Only trigger if mine is armed
-                if (this.isArmed) {
-                    if (!this.isExploded) {
-                        console.log('Mine triggered by vehicle:', vehicleBody.vehicleId);
-                        this.explode();
-                        
-                        // Emit an event for damage handling
-                        const customEvent = new CustomEvent('mineExplosion', {
-                            detail: {
-                                minePosition: this.body.position,  // Use the actual physics body position
-                                vehicleId: vehicleBody.vehicleId,
-                                damage: this.options.damage
-                            }
-                        });
-                        window.dispatchEvent(customEvent);
-                    }
-                }
+            const otherBody = bodyA === this.body ? bodyB : bodyA;
+
+            if (otherBody.vehicleId) {
+                // Calculate explosion force
+                const explosionForce = new CANNON.Vec3();
+                explosionForce.copy(otherBody.position);
+                explosionForce.vsub(this.body.position, explosionForce);
+                explosionForce.normalize();
+                explosionForce.scale(1000, explosionForce); // Scale the force
+
+                // Disable collision response immediately
+                this.body.collisionResponse = false;
+                otherBody.collisionResponse = false;
+
+                // Schedule explosion for next frame
+                requestAnimationFrame(() => {
+                    // Emit event for damage handling
+                    const customEvent = new CustomEvent('mineExplosion', {
+                        detail: {
+                            minePosition: this.body.position,
+                            vehicleId: otherBody.vehicleId,
+                            damage: this.options.damage,
+                            explosionForce: explosionForce
+                        }
+                    });
+                    window.dispatchEvent(customEvent);
+                    
+                    // Trigger explosion after event dispatch
+                    this.explode();
+                });
             }
         };
 
-        // Add the collision event listener
         this.world.addEventListener('beginContact', this.beginContactCallback);
     }
 
@@ -138,7 +144,8 @@ export class Mine {
             console.log('Mine armed:', {
                 mineId: this.id,
                 position: this.position,
-                timeSinceDeployment
+                timeSinceDeployment,
+                deployerId: this.options.deployerVehicleId
             });
         } else if (!this.isArmed) {
             // Blinking effect synchronized with arming delay
@@ -324,51 +331,89 @@ export class MineSystem {
     }
 
     cleanup() {
-        for (const mine of this.mines.values()) {
-            mine.cleanup();
-        }
+        // Remove all mines from the scene and physics world
+        this.mines.forEach(mine => {
+            if (mine.mesh) {
+                this.scene.remove(mine.mesh);
+            }
+            if (mine.body) {
+                this.world.removeBody(mine.body);
+            }
+        });
         this.mines.clear();
-        this.currentMines = this.maxMines; // Reset to max mines after cleanup
+        this.currentMines = 0;
+    }
+
+    resetMines() {
+        console.log('Resetting mine system...');
+        
+        // Remove all active mines
+        this.mines.forEach(mine => {
+            if (mine.mesh) {
+                this.scene.remove(mine.mesh);
+            }
+            if (mine.body) {
+                this.world.removeBody(mine.body);
+            }
+        });
+        
+        // Clear all mine data
+        this.mines.clear();
+        // Reset to max mines to replenish the available mines
+        this.currentMines = this.maxMines;
+        
+        console.log('Mine system reset complete - mines replenished:', this.currentMines);
     }
 
     handleCollision(event) {
         const { bodyA, bodyB } = event;
-        if (!bodyA || !bodyB) return;
+        if (!bodyA || !bodyB) {
+            console.log('Invalid collision event:', { bodyA, bodyB });
+            return;
+        }
 
         // Find which body is the mine
         const mineBody = bodyA.isMine ? bodyA : (bodyB.isMine ? bodyB : null);
-        if (!mineBody) return;
+        if (!mineBody) {
+            console.log('No mine body found in collision:', {
+                bodyA: { isMine: bodyA.isMine, vehicleId: bodyA.vehicleId },
+                bodyB: { isMine: bodyB.isMine, vehicleId: bodyB.vehicleId }
+            });
+            return;
+        }
 
         // Get the mine instance
         const mine = this.mines.get(mineBody.mineId);
-        if (!mine || mine.isExploded) return;
+        if (!mine) {
+            console.log('Mine instance not found:', { mineId: mineBody.mineId });
+            return;
+        }
+        if (mine.isExploded) {
+            console.log('Mine already exploded:', { mineId: mine.id });
+            return;
+        }
 
         // Get the other body (vehicle or environment)
         const otherBody = bodyA === mineBody ? bodyB : bodyA;
         
+        console.log('MineSystem collision check:', {
+            mineId: mine.id,
+            otherBody: { vehicleId: otherBody.vehicleId },
+            isArmed: mine.isArmed,
+            deployerId: mine.options.deployerVehicleId
+        });
+        
         // Only trigger for vehicles and if mine is armed
         if (otherBody.vehicleId && mine.isArmed) {
-            console.log('Mine collision detected:', {
+            console.log('MineSystem triggering explosion:', {
                 mineId: mine.id,
                 vehicleId: otherBody.vehicleId,
                 isArmed: mine.isArmed,
-                deployerVehicleId: mine.deployerVehicleId,
-                damage: mine.damage
+                deployerVehicleId: mine.options.deployerVehicleId,
+                damage: mine.options.damage
             });
 
-            // Trigger explosion for any vehicle after arming
-            console.log('Triggering mine explosion');
-            // Trigger explosion
-            const explosionEvent = new CustomEvent('mineExplosion', {
-                detail: {
-                    vehicleId: otherBody.vehicleId,
-                    damage: mine.damage,
-                    minePosition: mineBody.position
-                }
-            });
-            window.dispatchEvent(explosionEvent);
-
-            // Mark mine as exploded
+            // Let the mine handle its own explosion
             mine.explode();
         }
     }

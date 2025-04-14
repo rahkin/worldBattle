@@ -223,22 +223,15 @@ export class Game {
                 const currentHealth = this.playerVehicle.damageSystem.currentHealth || 100;
                 const maxHealth = this.playerVehicle.damageSystem.options?.maxHealth || 100;
                 this.healthDisplay.update(currentHealth, maxHealth);
-
-                // Handle vehicle destruction and respawn
-                if (this.playerVehicle.damageSystem.isDestroyed && !this.isRespawning) {
-                    this.isRespawning = true;
-                    this.respawnCountdown = 10.0;
-                    this.healthDisplay.showRespawnCounter(this.respawnCountdown);
-                }
             }
 
             // Update respawn countdown
             if (this.isRespawning) {
-                this.respawnCountdown = Math.max(0, this.respawnCountdown - deltaTime);
-                if (this.healthDisplay) {
-                    this.healthDisplay.updateRespawnCounter(this.respawnCountdown);
-                }
+                this.respawnCountdown -= deltaTime;
+                this._updateRespawnUI(this.respawnCountdown);
+                
                 if (this.respawnCountdown <= 0) {
+                    console.log('Respawn countdown complete, initiating respawn...');
                     this._respawnVehicle();
                 }
             }
@@ -321,9 +314,200 @@ export class Game {
         this.sceneManager.render(this.cameraManager.camera);
     }
 
+    _updateRespawnUI(countdown) {
+        // Create or update respawn counter element
+        let respawnElement = document.getElementById('respawn-counter');
+        if (!respawnElement) {
+            respawnElement = document.createElement('div');
+            respawnElement.id = 'respawn-counter';
+            respawnElement.style.position = 'absolute';
+            respawnElement.style.top = '50%';
+            respawnElement.style.left = '50%';
+            respawnElement.style.transform = 'translate(-50%, -50%)';
+            respawnElement.style.fontSize = '48px';
+            respawnElement.style.color = 'white';
+            respawnElement.style.textShadow = '2px 2px 4px rgba(0,0,0,0.5)';
+            respawnElement.style.zIndex = '1000';
+            document.body.appendChild(respawnElement);
+        }
+
+        if (countdown > 0) {
+            respawnElement.textContent = `Respawning in ${Math.ceil(countdown)}`;
+            respawnElement.style.display = 'block';
+        } else {
+            respawnElement.style.display = 'none';
+        }
+    }
+
+    _respawnVehicle() {
+        if (!this.playerVehicle) return;
+
+        console.log('Starting vehicle respawn...');
+        
+        // Store current vehicle type - use the actual vehicle type ID
+        const vehicleType = this.playerVehicle.options.type || 'muscle';
+        console.log('Respawning vehicle type:', vehicleType);
+        
+        // Remove old vehicle and create new one of same type
+        this.selectVehicle(vehicleType);
+        
+        // Reset damage system
+        if (this.playerVehicle.damageSystem) {
+            console.log('Resetting damage system');
+            this.playerVehicle.damageSystem.reset();
+        }
+
+        // Reset health display
+        if (this.healthDisplay) {
+            console.log('Updating health display');
+            this.healthDisplay.setVisible(true);
+            this.healthDisplay.update(100, 100);
+        }
+
+        // Reset ammo
+        if (this.playerVehicle) {
+            this.playerVehicle.ammo = this.playerVehicle.isHeavyVehicle ? 200 : 500;
+            if (this.ammoDisplay) {
+                this.ammoDisplay.updateAmmo(this.playerVehicle.ammo);
+            }
+        }
+
+        // Reset mines
+        if (this.mineSystem) {
+            this.mineSystem.resetMines();
+            if (this.mineDisplay) {
+                this.mineDisplay.updateCount(0, this.mineSystem.maxMines);
+            }
+        }
+
+        // Reset power-ups
+        if (this.powerUpSystem) {
+            this.powerUpSystem.clearActiveEffects();
+            if (this.powerUpDisplay) {
+                this.powerUpDisplay.clear();
+            }
+        }
+
+        // Reset respawn state
+        this.respawnCountdown = 0;
+        this.isRespawning = false;
+
+        // Hide respawn counter
+        const respawnElement = document.getElementById('respawn-counter');
+        if (respawnElement) {
+            respawnElement.style.display = 'none';
+        }
+
+        console.log('Vehicle respawn complete with full reset');
+    }
+
+    selectVehicle(vehicleId) {
+        if (this.playerVehicle) {
+            // Remove existing vehicle from scene
+            if (this.playerVehicle.chassisMesh) {
+                this.sceneManager.scene.remove(this.playerVehicle.chassisMesh);
+            }
+            if (this.playerVehicle.wheelMeshes) {
+                this.playerVehicle.wheelMeshes.forEach(wheel => {
+                    this.sceneManager.scene.remove(wheel);
+                });
+            }
+            // Remove physics body
+            if (this.playerVehicle.vehicle) {
+                this.physicsWorld.world.removeBody(this.playerVehicle.vehicle.chassisBody);
+            }
+            this.vehicleFactory.removeVehicle(this.playerVehicle);
+        }
+
+        // Create new vehicle
+        this.playerVehicle = this.vehicleFactory.createVehicle(vehicleId);
+        
+        // Set up input manager for vehicle control
+        if (this.playerVehicle) {
+            this.playerVehicle.inputManager = this.inputManager;
+            this.cameraManager.setTarget(this.playerVehicle);
+        }
+
+        // Update health display visibility
+        if (this.healthDisplay) {
+            console.log(`Setting health display visibility: ${this.playerVehicle !== null}`);
+            this.healthDisplay.setVisible(this.playerVehicle !== null);
+        }
+    }
+
+    _setupControls() {
+        window.addEventListener('keydown', this.handleKeyDown);
+        window.addEventListener('keyup', this.handleKeyUp);
+        window.addEventListener('mousedown', this.handleMouseDown);
+        window.addEventListener('mouseup', this.handleMouseUp);
+
+        // Add mine explosion event listener
+        window.addEventListener('mineExplosion', (event) => {
+            const { vehicleId, damage, minePosition, explosionForce } = event.detail;
+            console.log('Mine explosion event received:', { vehicleId, damage, minePosition });
+            
+            // Find the vehicle that hit the mine
+            if (this.playerVehicle && this.playerVehicle._vehicle.chassisBody.vehicleId === vehicleId) {
+                // Schedule damage application for next frame to avoid physics step conflicts
+                requestAnimationFrame(() => {
+                    // Double check vehicle still exists
+                    if (this.playerVehicle && this.playerVehicle.takeDamage) {
+                        console.log('Applying mine damage to vehicle:', damage);
+                        this.playerVehicle.takeDamage(damage);
+                        
+                        // Apply explosion force to the vehicle if it still exists
+                        if (this.playerVehicle._vehicle && this.playerVehicle._vehicle.chassisBody) {
+                            const chassisBody = this.playerVehicle._vehicle.chassisBody;
+                            chassisBody.applyImpulse(explosionForce, new CANNON.Vec3(0, 0, 0));
+                            
+                            // Add some angular velocity for spin effect
+                            chassisBody.angularVelocity.set(
+                                (Math.random() - 0.5) * 5,
+                                (Math.random() - 0.5) * 5,
+                                (Math.random() - 0.5) * 5
+                            );
+                        }
+                    }
+                });
+            }
+        });
+
+        // Add vehicle destroyed event listener
+        window.addEventListener('vehicleDestroyed', (event) => {
+            const { vehicleId } = event.detail;
+            if (this.playerVehicle && this.playerVehicle.id === vehicleId) {
+                console.log('Starting respawn process for vehicle:', vehicleId);
+                
+                // Hide the vehicle meshes
+                if (this.playerVehicle.chassisMesh) {
+                    this.playerVehicle.chassisMesh.visible = false;
+                }
+                if (this.playerVehicle.wheelMeshes) {
+                    this.playerVehicle.wheelMeshes.forEach(wheel => {
+                        if (wheel) wheel.visible = false;
+                    });
+                }
+
+                // Disable vehicle controls by removing physics vehicle reference
+                if (this.playerVehicle._vehicle) {
+                    // Store the vehicle type for respawn
+                    const vehicleType = this.playerVehicle.options.type;
+                    // Clear the vehicle reference
+                    this.playerVehicle._vehicle = null;
+                    // Store the type for respawn
+                    this.playerVehicle.options.type = vehicleType;
+                }
+
+                // Start respawn countdown
+                this.isRespawning = true;
+                this.respawnCountdown = 10.0;
+            }
+        });
+    }
+
     handleInput(deltaTime) {
-        // Early return if no player vehicle or physics vehicle
-        if (!this.playerVehicle || !this.playerVehicle._vehicle) {
+        // Early return if no player vehicle, physics vehicle, or during respawn
+        if (!this.playerVehicle || !this.playerVehicle._vehicle || this.isRespawning) {
             return;
         }
 
@@ -444,102 +628,6 @@ export class Game {
         }
     }
 
-    selectVehicle(vehicleId) {
-        if (this.playerVehicle) {
-            // Remove existing vehicle from scene
-            if (this.playerVehicle.chassisMesh) {
-                this.sceneManager.scene.remove(this.playerVehicle.chassisMesh);
-            }
-            if (this.playerVehicle.wheelMeshes) {
-                this.playerVehicle.wheelMeshes.forEach(wheel => {
-                    this.sceneManager.scene.remove(wheel);
-                });
-            }
-            // Remove physics body
-            if (this.playerVehicle.vehicle) {
-                this.physicsWorld.world.removeBody(this.playerVehicle.vehicle.chassisBody);
-            }
-            this.vehicleFactory.removeVehicle(this.playerVehicle);
-        }
-
-        // Create new vehicle
-        this.playerVehicle = this.vehicleFactory.createVehicle(vehicleId);
-        
-        // Set up input manager for vehicle control
-        if (this.playerVehicle) {
-            this.playerVehicle.inputManager = this.inputManager;
-            this.cameraManager.setTarget(this.playerVehicle);
-        }
-
-        // Update health display visibility
-        if (this.healthDisplay) {
-            console.log(`Setting health display visibility: ${this.playerVehicle !== null}`);
-            this.healthDisplay.setVisible(this.playerVehicle !== null);
-        }
-    }
-
-    _setupControls() {
-        window.addEventListener('keydown', this.handleKeyDown);
-        window.addEventListener('keyup', this.handleKeyUp);
-        window.addEventListener('mousedown', this.handleMouseDown);
-        window.addEventListener('mouseup', this.handleMouseUp);
-
-        // Add mine explosion event listener
-        window.addEventListener('mineExplosion', (event) => {
-            const { vehicleId, damage, minePosition } = event.detail;
-            console.log('Mine explosion event received:', { vehicleId, damage, minePosition });
-            
-            // Find the vehicle that hit the mine
-            if (this.playerVehicle && this.playerVehicle._vehicle.chassisBody.vehicleId === vehicleId) {
-                // Apply damage to player vehicle
-                if (this.playerVehicle.damageSystem) {
-                    console.log('Applying mine damage to vehicle:', damage);
-                    this.playerVehicle.damageSystem.applyDamage(damage, minePosition);
-                } else {
-                    console.warn('Vehicle has no damage system to apply mine damage');
-                }
-            }
-        });
-    }
-
-    _respawnVehicle() {
-        if (!this.playerVehicle) return;
-
-        console.log('Starting vehicle respawn...');
-        
-        // Store current vehicle type - use the actual vehicle type ID
-        const vehicleType = this.playerVehicle.options.type || 'muscle';
-        console.log('Respawning vehicle type:', vehicleType);
-        
-        // Remove old vehicle and create new one of same type
-        this.selectVehicle(vehicleType);
-        
-        // Reset damage system
-        if (this.playerVehicle.damageSystem) {
-            console.log('Resetting damage system');
-            this.playerVehicle.damageSystem.reset();
-        }
-
-        // Reset health display
-        if (this.healthDisplay) {
-            console.log('Updating health display');
-            this.healthDisplay.setVisible(true);
-            this.healthDisplay.update(100, 100);
-            this.healthDisplay.hideRespawnCounter();
-        }
-
-        // Reset respawn state
-        this.respawnCountdown = 0;
-        this.isRespawning = false;
-
-        console.log('Vehicle respawn complete');
-    }
-
-    // Remove duplicate respawnVehicle method
-    respawnVehicle() {
-        this._respawnVehicle();
-    }
-
     _handleRecovery() {
         console.log('Handling recovery request:', {
             hasPlayer: !!this.playerVehicle,
@@ -633,12 +721,14 @@ export class Game {
 
         // Check if either body is a power-up (collision group 2)
         let powerUpBody, vehicleBody;
-        if (bodyA.collisionFilterGroup === 2) {
-            powerUpBody = bodyA;
-            vehicleBody = bodyB;
-        } else if (bodyB.collisionFilterGroup === 2) {
-            powerUpBody = bodyB;
-            vehicleBody = bodyA;
+        if (bodyA && bodyB) {
+            if (bodyA.collisionFilterGroup === 2) {
+                powerUpBody = bodyA;
+                vehicleBody = bodyB;
+            } else if (bodyB.collisionFilterGroup === 2) {
+                powerUpBody = bodyB;
+                vehicleBody = bodyA;
+            }
         }
 
         // If we found a power-up collision
@@ -654,6 +744,24 @@ export class Game {
 
             if (powerUpId !== null) {
                 this.handlePowerUpCollision(powerUpId);
+            }
+        }
+
+        // Handle mine collisions
+        if (bodyA && bodyB) {
+            const mineBody = bodyA.isMine ? bodyA : (bodyB.isMine ? bodyB : null);
+            const vehicleBody = mineBody === bodyA ? bodyB : bodyA;
+
+            if (mineBody && vehicleBody && vehicleBody.vehicleId) {
+                const mine = this.mineSystem.mines.get(mineBody.mineId);
+                if (mine && mine.isArmed && !mine.isExploded) {
+                    console.log('Mine collision detected:', {
+                        mineId: mine.id,
+                        vehicleId: vehicleBody.vehicleId,
+                        damage: mine.options.damage
+                    });
+                    mine.explode();
+                }
             }
         }
     }

@@ -600,30 +600,37 @@ export class PowerUpSystem {
     }
 
     cleanup() {
-        console.log('PowerUpSystem: Cleaning up', {
-            powerUpCount: this.powerUps.size,
-            activeEffectCount: this.activeEffects.size
+        // Remove all power-ups from the scene and physics world
+        this.powerUps.forEach(powerUp => {
+            if (powerUp.mesh) {
+                this.scene.remove(powerUp.mesh);
+            }
+            if (powerUp.body) {
+                this.world.removeBody(powerUp.body);
+            }
+        });
+        this.powerUps.clear();
+    }
+
+    clearActiveEffects() {
+        console.log('Clearing active power-up effects...');
+        
+        // Remove all active effects
+        this.activeEffects.forEach(effect => {
+            if (effect.cleanup) {
+                effect.cleanup();
+            }
         });
         
-        // Remove all power-ups
-        for (const powerUp of this.powerUps.values()) {
-            this.world.removeBody(powerUp.body);
-            this.scene.remove(powerUp.mesh);
-        }
-        this.powerUps.clear();
-        
-        // Revert all active effects
-        for (const effects of this.activeEffects.values()) {
-            for (const effect of effects.values()) {
-                effect.type.revert(effect.vehicle);
-            }
-        }
+        // Clear all active effects
         this.activeEffects.clear();
         
-        console.log('PowerUpSystem: Cleanup complete', {
-            powerUpCount: this.powerUps.size,
-            activeEffectCount: this.activeEffects.size
-        });
+        // Clear the power-up display
+        if (this.powerUpDisplay) {
+            this.powerUpDisplay.clear();
+        }
+        
+        console.log('Power-up effects cleared');
     }
 
     findVehicleById(vehicleId) {

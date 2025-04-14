@@ -62,11 +62,7 @@ export class BaseCar {
         this._createCar();
 
         // Initialize damage system after car is created
-        this.damageSystem = new VehicleDamageSystem(this, this.scene, {
-            maxHealth: this.options.maxHealth,
-            damageResistance: this.options.damageResistance,
-            recoveryCooldown: this.options.recoveryCooldown
-        });
+        this._initDamageSystem();
 
         this.id = options.id || Math.random().toString(36).substr(2, 9);
         this.type = options.type || 'base';
@@ -122,6 +118,8 @@ export class BaseCar {
 
         // Store reference to this vehicle instance in the chassis body's userData
         chassisBody.userData = { vehicle: this };
+        // Add vehicle ID to the chassis body
+        chassisBody.vehicleId = this.id || 'vehicle_' + Math.random().toString(36).substr(2, 9);
 
         // Raycast Vehicle
         this._vehicle = new CANNON.RaycastVehicle({
@@ -456,11 +454,7 @@ export class BaseCar {
         this._createCar();
 
         // Reset damage system
-        this.damageSystem = new VehicleDamageSystem(this, this.scene, {
-            maxHealth: this.options.maxHealth || 100,
-            damageResistance: this.options.damageResistance || 1.0,
-            recoveryCooldown: this.options.recoveryCooldown || 3.0
-        });
+        this.damageSystem = new VehicleDamageSystem(this, this.scene, this.world);
     }
 
     forceTeleport(position, quaternion = new CANNON.Quaternion(0, 0, 0, 1)) {
@@ -649,38 +643,16 @@ export class BaseCar {
     }
 
     takeDamage(amount) {
-        console.log('takeDamage called with:', {
-            amount,
-            currentHealth: this.health,
-            hasDamageSystem: !!this.damageSystem,
-            damageSystemHealth: this.damageSystem?.currentHealth,
-            stats: this.stats
-        });
-
-        if (!this.damageSystem) {
-            console.error('No damage system available!');
-            return;
-        }
-
-        // Apply damage through the damage system
-        this.damageSystem.applyDamage(amount);
-        
-        // Update our health to match the damage system
-        this.health = this.damageSystem.currentHealth;
-        
-        // Update health bar
-        this.updateHealthBar(this.health / this.maxHealth);
-        
-        console.log('Damage applied:', {
-            newHealth: this.health,
-            damageSystemHealth: this.damageSystem.currentHealth,
-            isDestroyed: this.health <= 0
-        });
-
-        // Handle destruction
-        if (this.health <= 0) {
-            console.log('Vehicle destroyed');
-            this.damageSystem.isDestroyed = true;
+        if (this.damageSystem) {
+            console.log('Taking damage:', {
+                amount: amount,
+                currentHealth: this.damageSystem.currentHealth,
+                maxHealth: this.damageSystem.maxHealth
+            });
+            this.damageSystem.applyDamage(amount);
+            this.updateHealthBar(this.damageSystem.currentHealth / this.damageSystem.maxHealth);
+        } else {
+            console.warn('No damage system available for vehicle:', this.id);
         }
     }
 
@@ -723,5 +695,13 @@ export class BaseCar {
             delete this._originalDamageResistance;
         }
         return true;
+    }
+
+    _initDamageSystem() {
+        if (!this.damageSystem) {
+            this.damageSystem = new VehicleDamageSystem(this, this.scene, this.world);
+            this.hasDamageSystem = true;
+            console.log('Damage system initialized');
+        }
     }
 } 

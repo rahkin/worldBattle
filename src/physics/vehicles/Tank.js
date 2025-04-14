@@ -9,23 +9,23 @@ export class Tank extends BaseCar {
             width: 1.3,
             height: 0.6,
             length: 2.6,
-            mass: 1200,     // Lighter for a light tank
+            mass: 2500,     // Heavier than Ironclad (2000) as it's a tank
             color: 0x4F5246,  // Military olive drab
             wheelRadius: 0.4,
             wheelWidth: 0.5,  // Wide tracks
-            wheelFriction: 14,
-            suspensionRestLength: 0.4,
+            wheelFriction: 20, // Highest friction for tank tracks
+            suspensionRestLength: 0.5,
             wheelBaseZ: 2.2,
             wheelTrackX: 1.4,
             chassisOffsetY: 0.5,
-            suspensionStiffness: 55,
-            dampingRelaxation: 3.0,
-            dampingCompression: 4.0,
-            maxSuspensionForce: 180000,
-            maxSuspensionTravel: 0.5,
-            engineForce: 8500,  // Increased power for better mobility
-            brakeForce: 160,
-            maxSteerAngle: 0.7  // Better turning for light tank
+            suspensionStiffness: 70,  // Stiffest suspension for tank
+            dampingRelaxation: 4.0,   // Heavy damping for stability
+            dampingCompression: 5.0,   // Strong compression for heavy weight
+            maxSuspensionForce: 300000, // Highest force for heaviest vehicle
+            maxSuspensionTravel: 0.4,
+            engineForce: 10000,  // Most powerful engine
+            brakeForce: 200,    // Strong brakes
+            maxSteerAngle: 0.5  // Limited turning for realism
         };
         super(world, scene, options);
 
@@ -33,18 +33,18 @@ export class Tank extends BaseCar {
         
         // Initialize projectile system with larger projectile size
         this.projectileSystem = new ProjectileSystem(world, scene, game.cameraManager.camera, {
-            projectileSize: 0.5,  // Increased from default size
-            projectileColor: 0xffaa00  // Bright orange for better visibility
+            projectileSize: 0.5,  // Largest projectile size
+            projectileColor: 0xffaa00  // Bright orange for visibility
         });
         
-        // M1 Abrams weapon properties (scaled for game physics)
+        // Tank weapon properties
         this.weapon = {
-            fireRate: 8000,      // 8 seconds between shots (7.5 rounds per minute)
-            lastShot: -8000,     // Allow immediate first shot
-            projectileSpeed: 175, // Scaled down for physics engine (1/10th of real speed)
-            projectileDamage: 100,
-            range: 1600,         // Doubled range again for better gameplay
-            spread: 0.0005       // Very high accuracy
+            fireRate: 8000,      // 8 seconds between shots
+            lastShot: 0,
+            projectileSpeed: 175, // High velocity
+            projectileDamage: 100, // Highest single-shot damage
+            range: 1600,         // Long range
+            spread: 0.0005       // Most accurate
         };
 
         // Simplified turret properties
@@ -53,16 +53,16 @@ export class Tank extends BaseCar {
             barrel: null
         };
 
-        // Adjust physics body properties
-        this.vehicle.chassisBody.angularDamping = 0.2;  // Better rotation
-        this.vehicle.chassisBody.linearDamping = 0.03;   // Less resistance
+        // Adjust physics body properties for tank
+        this.vehicle.chassisBody.angularDamping = 0.3;  // More resistance to rotation
+        this.vehicle.chassisBody.linearDamping = 0.05;  // Slight resistance to movement
 
-        // Adjust wheel properties for better traction and agility
+        // Adjust wheel properties for tank tracks
         this.vehicle.wheelInfos.forEach(wheel => {
-            wheel.frictionSlip = 5.0;
-            wheel.rollInfluence = 0.01;
-            wheel.suspensionStiffness = 55;
-            wheel.customSlidingRotationalSpeed = -60;
+            wheel.frictionSlip = 8.0;  // High friction for tracks
+            wheel.rollInfluence = 0.01; // Low roll for stability
+            wheel.suspensionStiffness = 70;
+            wheel.customSlidingRotationalSpeed = -30;
             wheel.useCustomSlidingRotationalSpeed = true;
         });
 
@@ -70,6 +70,11 @@ export class Tank extends BaseCar {
         this._addTankFeatures();
         this._enhanceWheels();
         this._createTurret();
+
+        // Cache objects for visual updates
+        this._turretRotationQuat = new THREE.Quaternion();
+        this._barrelOffset = new THREE.Vector3(0, 0, 2);
+        this._tempVector = new THREE.Vector3();
     }
 
     _createDetailedChassis() {
@@ -440,9 +445,40 @@ export class Tank extends BaseCar {
     updateVisuals() {
         super.updateVisuals();
         
-        // Add slight oscillation to the tank when moving
-        if (this.vehicle.chassisBody.velocity.length() > 0.1) {
-            this.chassisMesh.position.y += Math.sin(Date.now() * 0.01) * 0.002;
+        if (this.turretMesh && this.chassisBody) {
+            const chassisWorldPos = this.chassisBody.position;
+            const chassisWorldQuat = this.chassisBody.quaternion;
+            
+            this.turretMesh.position.copy(chassisWorldPos);
+            this.turretMesh.position.y += this.options.height + 0.2;
+            
+            // Apply chassis rotation to turret base
+            this.turretMesh.quaternion.copy(chassisWorldQuat);
+            
+            // Apply additional turret rotation based on aim
+            if (this.turretRotation) {
+                this._turretRotationQuat.setFromAxisAngle(new THREE.Vector3(0, 1, 0), this.turretRotation);
+                this.turretMesh.quaternion.multiply(this._turretRotationQuat);
+            }
+            
+            // Update muzzle flash position
+            if (this.muzzleFlash) {
+                this.muzzleFlash.position.copy(this.turretMesh.position);
+                this.muzzleFlash.position.y = this.turretMesh.position.y;
+                this.muzzleFlash.quaternion.copy(this.turretMesh.quaternion);
+                
+                // Offset muzzle flash to barrel end using cached vector
+                this._tempVector.copy(this._barrelOffset).applyQuaternion(this.turretMesh.quaternion);
+                this.muzzleFlash.position.add(this._tempVector);
+            }
         }
+    }
+
+    destroy() {
+        // Clean up cached objects
+        this._turretRotationQuat = null;
+        this._barrelOffset = null;
+        this._tempVector = null;
+        super.destroy();
     }
 } 

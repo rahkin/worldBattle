@@ -112,6 +112,40 @@ export class MuscleCar extends BaseCar {
         rearBumper.position.set(0, this.options.height * 0.5, this.options.length);
         this.chassisMesh.add(rearBumper);
 
+        // Add rear lights - embedded look
+        const lightStripGeo = new THREE.BoxGeometry(this.options.width * 1.6, 0.3, 0.01);  // Increased height
+        const lightMaterial = new THREE.MeshPhongMaterial({
+            color: 0xff0000,
+            emissive: 0xff0000,
+            emissiveIntensity: 2.5,  // Increased intensity
+            transparent: true,
+            opacity: 1.0
+        });
+        const rearLightStrip = new THREE.Mesh(lightStripGeo, lightMaterial);
+        rearLightStrip.position.set(0, this.options.height * 0.3, this.options.length - 0.001);
+        this.chassisMesh.add(rearLightStrip);
+
+        // Add enhanced light glow effect
+        const glowGeo = new THREE.PlaneGeometry(this.options.width * 1.8, 0.4);  // Increased height
+        const glowMaterial = new THREE.MeshBasicMaterial({
+            color: 0xff0000,
+            transparent: true,
+            opacity: 0.8,  // Increased opacity
+            blending: THREE.AdditiveBlending
+        });
+        const glow = new THREE.Mesh(glowGeo, glowMaterial);
+        glow.position.set(0, this.options.height * 0.3, this.options.length);
+        glow.rotation.y = Math.PI;
+        this.chassisMesh.add(glow);
+
+        // Add second glow layer for more intensity
+        const glow2 = new THREE.Mesh(glowGeo.clone(), glowMaterial.clone());
+        glow2.material.opacity = 0.5;  // Increased opacity
+        glow2.position.set(0, this.options.height * 0.3, this.options.length + 0.01);
+        glow2.rotation.y = Math.PI;
+        glow2.scale.set(1.3, 1.3, 1.3);  // Increased scale
+        this.chassisMesh.add(glow2);
+
         // Cabin/Greenhouse
         const cabinGeo = VehicleGeometryFactory.createSmoothCabin(
             this.options.width * 1.8,

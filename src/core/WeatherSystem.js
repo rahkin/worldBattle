@@ -1,4 +1,6 @@
 import * as THREE from 'three';
+import { RainSystem } from './RainSystem.js';
+import { GroundEffectsSystem } from './GroundEffectsSystem.js';
 
 export class WeatherSystem {
     constructor(scene, timeSystem) {
@@ -16,8 +18,14 @@ export class WeatherSystem {
         this.cloudLayer = new THREE.Group();
         this.scene.add(this.cloudLayer);
         
+        // Rain system
+        this.rainSystem = new RainSystem(scene, scene.camera);
+        
+        // Ground effects system
+        // Note: We'll initialize this after the ground is created
+        this.groundEffects = null;
+        
         // Weather effects
-        this.rainSystem = null;
         this.fogSystem = null;
         
         // Initialize systems
@@ -30,11 +38,11 @@ export class WeatherSystem {
         for (let i = 0; i < this.cloudCount; i++) {
             const cloud = this.createCloud();
             
-            // Random position in sky
+            // More spread out distribution
             cloud.position.set(
-                (Math.random() - 0.5) * 2000,
-                500 + Math.random() * 200,
-                (Math.random() - 0.5) * 2000
+                (Math.random() - 0.5) * 2000,  // Increased from 1000 to 2000 for wider spread
+                200 + Math.random() * 100,     // Keep same height
+                (Math.random() - 0.5) * 2000   // Increased from 1000 to 2000 for wider spread
             );
             
             // Random rotation
@@ -43,7 +51,7 @@ export class WeatherSystem {
             this.cloudLayer.add(cloud);
             this.clouds.set(i, {
                 mesh: cloud,
-                speed: 0.1 + Math.random() * 0.2,
+                speed: 0.05 + Math.random() * 0.1,
                 direction: new THREE.Vector3(
                     Math.random() - 0.5,
                     0,
@@ -65,7 +73,172 @@ export class WeatherSystem {
             flatShading: true
         });
         
-        // Create multiple spheres for one cloud
+        // Create multiple spheres for one cloud with smaller sizes
+        const sphereCount = 5 + Math.floor(Math.random() * 5);
+        for (let i = 0; i < sphereCount; i++) {
+            const size = 20 + Math.random() * 30;  // Reduced from 40-100 to 20-50
+            const geometry = new THREE.SphereGeometry(size, 8, 8);
+            const cloudPart = new THREE.Mesh(geometry, cloudMaterial);
+            
+            // Position each sphere slightly offset
+            cloudPart.position.set(
+                (Math.random() - 0.5) * 40,   // Reduced from 80 to 40
+                (Math.random() - 0.5) * 20,   // Reduced from 40 to 20
+                (Math.random() - 0.5) * 40    // Reduced from 80 to 40
+            );
+            
+            cloudGroup.add(cloudPart);
+        }
+        
+        return cloudGroup;
+    }
+    
+    initializeFog() {
+        // Add fog to the scene
+        this.scene.fog = new THREE.Fog(0xcfcfcf, 100, 1000);
+        this.scene.fog.density = 0;
+    }
+    
+    initializeGroundEffects(ground) {
+        this.groundEffects = new GroundEffectsSystem(this.scene, ground);
+    }
+    
+    setWeather(type, transitionDuration = 5) {
+        this.currentWeather = type;
+        this.weatherTransitionTime = transitionDuration;
+        this.weatherIntensity = 0;
+        
+        console.log(`Weather changing to ${type} over ${transitionDuration} seconds`);
+        
+        // Clear any existing additional clouds
+        this.clearAdditionalClouds();
+        
+        switch (type) {
+            case 'clear':
+                this.updateFog(0);
+                this.updateCloudOpacity(0.6);
+                this.updateCloudScale(1.0);
+                this.setCloudCount(50);
+                if (this.rainSystem) this.rainSystem.disable();
+                break;
+                
+            case 'cloudy':
+                this.updateFog(0.2);
+                this.updateCloudOpacity(1);
+                this.updateCloudScale(1.5);
+                this.setCloudCount(100);
+                this.generateAdditionalClouds(50, {
+                    heightRange: [200, 400],
+                    scaleMultiplier: 1.5
+                });
+                if (this.rainSystem) this.rainSystem.disable();
+                break;
+                
+            case 'foggy':
+                this.updateFog(0.8);
+                this.updateCloudOpacity(0.8);
+                this.updateCloudScale(2.0);
+                this.setCloudCount(75);
+                this.generateAdditionalClouds(25, {
+                    heightRange: [100, 250],
+                    scaleMultiplier: 2.0,
+                    spread: 0.7
+                });
+                if (this.rainSystem) this.rainSystem.disable();
+                break;
+                
+            case 'storm':
+                this.updateFog(0.4);
+                this.updateCloudOpacity(1);
+                this.updateCloudScale(1.8);
+                this.setCloudCount(120);
+                this.generateAdditionalClouds(70, {
+                    heightRange: [300, 500],
+                    scaleMultiplier: 1.8,
+                    color: 0x666666
+                });
+                this.darkendClouds();
+                if (this.rainSystem) {
+                    this.rainSystem.enable();
+                    this.rainSystem.setIntensity(1.0);
+                    this.rainSystem.setWind(5, Math.random() * Math.PI * 2);
+                }
+                break;
+        }
+    }
+    
+    clearAdditionalClouds() {
+        // Remove all additional clouds from the scene
+        this.clouds.forEach((cloud, index) => {
+            if (index >= 50) {  // Keep the first 50 base clouds
+                this.cloudLayer.remove(cloud.mesh);
+                this.clouds.delete(index);
+            }
+        });
+    }
+    
+    updateCloudScale(scale) {
+        this.clouds.forEach(cloud => {
+            cloud.mesh.scale.set(scale, scale, scale);
+        });
+    }
+    
+    setCloudCount(count) {
+        // Adjust the base cloud count (will be used for new weather transitions)
+        this.cloudCount = count;
+    }
+    
+    generateAdditionalClouds(count = 20, options = {}) {
+        const {
+            heightRange = [200, 400],
+            scaleMultiplier = 1.0,
+            spread = 1.0,
+            color = 0xffffff
+        } = options;
+
+        const startIndex = this.clouds.size;
+        for (let i = 0; i < count; i++) {
+            const cloud = this.createCloud(color);
+            
+            // Position with custom height range and spread
+            cloud.position.set(
+                (Math.random() - 0.5) * 2000 * spread,
+                heightRange[0] + Math.random() * (heightRange[1] - heightRange[0]),
+                (Math.random() - 0.5) * 2000 * spread
+            );
+            
+            // Apply scale
+            cloud.scale.set(scaleMultiplier, scaleMultiplier, scaleMultiplier);
+            
+            // Random rotation
+            cloud.rotation.y = Math.random() * Math.PI * 2;
+            
+            this.cloudLayer.add(cloud);
+            this.clouds.set(startIndex + i, {
+                mesh: cloud,
+                speed: 0.05 + Math.random() * 0.1,
+                direction: new THREE.Vector3(
+                    Math.random() - 0.5,
+                    0,
+                    Math.random() - 0.5
+                ).normalize()
+            });
+        }
+    }
+    
+    createCloud(color = 0xffffff) {
+        // Create a group for the cloud parts
+        const cloudGroup = new THREE.Group();
+        
+        // Cloud material with soft edges
+        const cloudMaterial = new THREE.MeshPhongMaterial({
+            color: color,
+            transparent: true,
+            opacity: 0.8,
+            flatShading: true
+        });
+        
+        // Create multiple spheres for one cloud with varied sizes
         const sphereCount = 5 + Math.floor(Math.random() * 5);
         for (let i = 0; i < sphereCount; i++) {
             const size = 20 + Math.random() * 30;
@@ -83,72 +256,6 @@ export class WeatherSystem {
         }
         
         return cloudGroup;
-    }
-    
-    initializeFog() {
-        // Add fog to the scene
-        this.scene.fog = new THREE.Fog(0xcfcfcf, 100, 1000);
-        this.scene.fog.density = 0;
-    }
-    
-    setWeather(type, transitionDuration = 5) {
-        this.currentWeather = type;
-        this.weatherTransitionTime = transitionDuration;
-        this.weatherIntensity = 0;
-        
-        console.log(`Weather changing to ${type} over ${transitionDuration} seconds`);
-        
-        switch (type) {
-            case 'clear':
-                this.updateFog(0);
-                this.updateCloudOpacity(0.8);
-                break;
-                
-            case 'cloudy':
-                this.updateFog(0.2);
-                this.updateCloudOpacity(1);
-                this.generateAdditionalClouds();
-                break;
-                
-            case 'foggy':
-                this.updateFog(0.8);
-                this.updateCloudOpacity(0.6);
-                break;
-                
-            case 'storm':
-                this.updateFog(0.4);
-                this.updateCloudOpacity(1);
-                this.generateAdditionalClouds();
-                this.darkendClouds();
-                break;
-        }
-    }
-    
-    generateAdditionalClouds() {
-        // Add more clouds for cloudy/stormy weather
-        const additionalClouds = 20;
-        for (let i = 0; i < additionalClouds; i++) {
-            const cloud = this.createCloud();
-            
-            // Position new clouds at the edges
-            const angle = (i / additionalClouds) * Math.PI * 2;
-            cloud.position.set(
-                Math.cos(angle) * 1500,
-                500 + Math.random() * 200,
-                Math.sin(angle) * 1500
-            );
-            
-            this.cloudLayer.add(cloud);
-            this.clouds.set(this.clouds.size, {
-                mesh: cloud,
-                speed: 0.2 + Math.random() * 0.3,
-                direction: new THREE.Vector3(
-                    Math.random() - 0.5,
-                    0,
-                    Math.random() - 0.5
-                ).normalize()
-            });
-        }
     }
     
     darkendClouds() {
@@ -196,6 +303,18 @@ export class WeatherSystem {
             }
         });
         
+        // Update rain system
+        let rainIntensity = 0;
+        if (this.rainSystem && this.rainSystem.enabled) {
+            this.rainSystem.update(deltaTime);
+            rainIntensity = this.weatherIntensity;
+        }
+        
+        // Update ground effects
+        if (this.groundEffects) {
+            this.groundEffects.update(deltaTime, rainIntensity);
+        }
+        
         // Update weather transition
         if (this.weatherTransitionTime > 0) {
             this.weatherIntensity = Math.min(
@@ -207,7 +326,7 @@ export class WeatherSystem {
             switch (this.currentWeather) {
                 case 'clear':
                     this.updateFog(0);
-                    this.updateCloudOpacity(0.8 * this.weatherIntensity);
+                    this.updateCloudOpacity(0.6 * this.weatherIntensity);
                     break;
                     
                 case 'cloudy':
@@ -217,12 +336,15 @@ export class WeatherSystem {
                     
                 case 'foggy':
                     this.updateFog(0.8 * this.weatherIntensity);
-                    this.updateCloudOpacity(0.6 * this.weatherIntensity);
+                    this.updateCloudOpacity(0.8 * this.weatherIntensity);
                     break;
                     
                 case 'storm':
                     this.updateFog(0.4 * this.weatherIntensity);
                     this.updateCloudOpacity(this.weatherIntensity);
+                    if (this.rainSystem) {
+                        this.rainSystem.setIntensity(this.weatherIntensity);
+                    }
                     break;
             }
         }
@@ -245,5 +367,9 @@ export class WeatherSystem {
                 }
             });
         });
+    }
+
+    getFrictionModifier() {
+        return this.groundEffects ? this.groundEffects.getFrictionModifier() : 1.0;
     }
 } 

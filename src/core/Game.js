@@ -872,7 +872,8 @@ export class Game {
     }
 
     handleKeyDown(event) {
-        if (event.key === 'r' || event.key === 'R') {
+        // Existing rearview control
+        if (event.key === 'r' && !event.ctrlKey) {
             this.inputState.lookingBack = true;
             if (this.playerVehicle) {
                 this.playerVehicle.setLookingBack(true);
@@ -882,6 +883,37 @@ export class Game {
         // Add time test mode toggle
         if (event.key === 'y' || event.key === 'Y') {
             this.timeSystem.toggleTestMode();
+        }
+
+        // Weather testing controls (using number keys)
+        if (event.key === '1') {  // Regular rain
+            console.log('Toggling rain');
+            if (this.weatherSystem.currentWeather === 'rain') {
+                this.weatherSystem.setWeather('clear', 2);
+            } else {
+                this.weatherSystem.setWeather('rain', 2);
+            }
+        } else if (event.key === '2') {  // Storm
+            console.log('Toggling storm');
+            if (this.weatherSystem.currentWeather === 'storm') {
+                this.weatherSystem.setWeather('clear', 2);
+            } else {
+                this.weatherSystem.setWeather('storm', 2);
+            }
+        } else if (event.key === '3') {  // Foggy
+            console.log('Toggling fog');
+            if (this.weatherSystem.currentWeather === 'foggy') {
+                this.weatherSystem.setWeather('clear', 2);
+            } else {
+                this.weatherSystem.setWeather('foggy', 2);
+            }
+        } else if (event.key === '4') {  // Cloudy
+            console.log('Toggling clouds');
+            if (this.weatherSystem.currentWeather === 'cloudy') {
+                this.weatherSystem.setWeather('clear', 2);
+            } else {
+                this.weatherSystem.setWeather('cloudy', 2);
+            }
         }
     }
 

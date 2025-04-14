@@ -190,6 +190,41 @@ export class BaseCar {
         const chassisMat = new THREE.MeshPhongMaterial({ color: o.color });
         this.chassisMesh = new THREE.Mesh(chassisGeo, chassisMat);
         this.chassisMesh.castShadow = true;
+
+        // Add rear lights
+        const lightStripGeo = new THREE.BoxGeometry(o.width * 3.2, 0.3, 0.01);
+        const lightMaterial = new THREE.MeshPhongMaterial({
+            color: 0xff0000,
+            emissive: 0xff0000,
+            emissiveIntensity: 2.5,
+            transparent: true,
+            opacity: 1.0
+        });
+        const rearLightStrip = new THREE.Mesh(lightStripGeo, lightMaterial);
+        rearLightStrip.position.set(0, o.height * 0.3, o.length - 0.001);
+        this.chassisMesh.add(rearLightStrip);
+
+        // Add light glow effect
+        const glowGeo = new THREE.PlaneGeometry(o.width * 3.6, 0.4);
+        const glowMaterial = new THREE.MeshBasicMaterial({
+            color: 0xff0000,
+            transparent: true,
+            opacity: 0.8,
+            blending: THREE.AdditiveBlending
+        });
+        const glow = new THREE.Mesh(glowGeo, glowMaterial);
+        glow.position.set(0, o.height * 0.3, o.length);
+        glow.rotation.y = Math.PI;
+        this.chassisMesh.add(glow);
+
+        // Add second glow layer for more intensity
+        const glow2 = new THREE.Mesh(glowGeo.clone(), glowMaterial.clone());
+        glow2.material.opacity = 0.5;
+        glow2.position.set(0, o.height * 0.3, o.length + 0.01);
+        glow2.rotation.y = Math.PI;
+        glow2.scale.set(1.3, 1.3, 1.3);
+        this.chassisMesh.add(glow2);
+
         this.scene.add(this.chassisMesh);
 
         // Wheel mesh setup with enhanced visuals
@@ -282,6 +317,14 @@ export class BaseCar {
 
     update(deltaTime) {
         if (!this._vehicle) return;
+
+        // Get current friction modifier from weather system
+        const frictionModifier = this.game.weatherSystem.getFrictionModifier();
+        
+        // Apply friction modifier to wheels
+        this._vehicle.wheelInfos.forEach(wheel => {
+            wheel.frictionSlip = this.options.wheelFriction * frictionModifier;
+        });
 
         // Update vehicle physics
         for (let i = 0; i < this._vehicle.wheelInfos.length; i++) {

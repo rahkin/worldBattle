@@ -1,9 +1,11 @@
 import * as THREE from 'three';
 import { RainSystem } from './RainSystem.js';
 import { GroundEffectsSystem } from './GroundEffectsSystem.js';
+import { OpenWeatherMapService } from './OpenWeatherMapService.js';
 
 export class WeatherSystem {
-    constructor(scene, timeSystem) {
+    constructor(scene, timeSystem, openWeatherMapApiKey) {
+        console.log('Initializing WeatherSystem with OpenWeatherMap integration...');
         this.scene = scene;
         this.timeSystem = timeSystem;
         
@@ -11,6 +13,15 @@ export class WeatherSystem {
         this.currentWeather = 'clear';
         this.weatherTransitionTime = 0;
         this.weatherIntensity = 0;
+        
+        // OpenWeatherMap integration
+        this.weatherService = new OpenWeatherMapService(openWeatherMapApiKey);
+        this.lastWeatherCheck = 0;
+        this.weatherCheckInterval = 5 * 60 * 1000; // 5 minutes in milliseconds
+        
+        // User location
+        this.userLocation = null;
+        this.locationError = null;
         
         // Cloud system
         this.clouds = new Map();
@@ -31,6 +42,7 @@ export class WeatherSystem {
         // Initialize systems
         this.initializeClouds();
         this.initializeFog();
+        this.initializeLocation();
     }
     
     initializeClouds() {
@@ -286,7 +298,98 @@ export class WeatherSystem {
         });
     }
     
+    async initializeLocation() {
+        console.log('Requesting user location for weather data...');
+        try {
+            if ("geolocation" in navigator) {
+                const position = await new Promise((resolve, reject) => {
+                    navigator.geolocation.getCurrentPosition(resolve, reject, {
+                        enableHighAccuracy: true,
+                        timeout: 5000,
+                        maximumAge: 0
+                    });
+                });
+
+                this.userLocation = {
+                    latitude: position.coords.latitude,
+                    longitude: position.coords.longitude
+                };
+
+                console.log('User location obtained:', this.userLocation);
+                
+                // Fetch initial weather data
+                await this.updateWeatherFromAPI(
+                    this.userLocation.latitude,
+                    this.userLocation.longitude
+                );
+            } else {
+                console.error('Geolocation is not supported by this browser');
+                this.locationError = 'Geolocation not supported';
+                this.setWeather('clear'); // Default to clear weather
+            }
+        } catch (error) {
+            console.error('Error getting location:', error);
+            this.locationError = error.message;
+            this.setWeather('clear'); // Default to clear weather
+        }
+    }
+
+    async updateWeatherFromAPI(latitude, longitude) {
+        console.log('Fetching weather data for location:', { latitude, longitude });
+        const weatherData = await this.weatherService.getWeather(latitude, longitude);
+        if (weatherData) {
+            console.log('Weather data received:', {
+                type: weatherData.type,
+                temperature: weatherData.temperature,
+                humidity: weatherData.humidity,
+                windSpeed: weatherData.windSpeed,
+                windDirection: weatherData.windDirection,
+                description: weatherData.description
+            });
+            
+            this.setWeather(weatherData.type, 5);
+            
+            // Update rain system with real wind data if available
+            if (this.rainSystem && weatherData.windSpeed) {
+                console.log('Updating rain system with wind data:', {
+                    speed: weatherData.windSpeed,
+                    direction: weatherData.windDirection
+                });
+                this.rainSystem.setWind(
+                    weatherData.windSpeed,
+                    THREE.MathUtils.degToRad(weatherData.windDirection)
+                );
+            }
+            
+            // Update ground effects with real temperature and humidity
+            if (this.groundEffects) {
+                console.log('Updating ground effects with conditions:', {
+                    temperature: weatherData.temperature,
+                    humidity: weatherData.humidity
+                });
+                this.groundEffects.updateConditions(
+                    weatherData.temperature,
+                    weatherData.humidity
+                );
+            }
+        } else {
+            console.warn('No weather data received from API');
+            this.setWeather('clear'); // Default to clear weather
+        }
+    }
+
     update(deltaTime) {
+        // Check for weather updates every 5 minutes if we have user location
+        const now = Date.now();
+        if (this.userLocation && now - this.lastWeatherCheck >= this.weatherCheckInterval) {
+            console.log('Checking for weather updates...');
+            this.lastWeatherCheck = now;
+            this.updateWeatherFromAPI(
+                this.userLocation.latitude,
+                this.userLocation.longitude
+            );
+        }
+
         // Update cloud positions
         this.clouds.forEach(cloud => {
             cloud.mesh.position.add(

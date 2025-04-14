@@ -97,8 +97,9 @@ export class Game {
         // Initialize time system
         this.timeSystem = new TimeSystem(this.sceneManager.scene);
 
-        // Initialize weather system
-        this.weatherSystem = new WeatherSystem(this.sceneManager.scene, this.timeSystem);
+        // Initialize weather system with OpenWeatherMap API key
+        const openWeatherMapApiKey = '97b4699b10c27374b0041fe4f50ebcd6'; // Directly use the API key
+        this.weatherSystem = new WeatherSystem(this.sceneManager.scene, this.timeSystem, openWeatherMapApiKey);
 
         // Initialize collision system
         this.collisionSystem = new CollisionSystem(this.physicsWorld.world);
@@ -111,6 +112,10 @@ export class Game {
         this.physicsWorld.world.addEventListener('beginContact', (event) => {
             this.mineSystem.handleCollision(event);
         });
+
+        // Add event listener for location access changes
+        this.handleLocationAccess = this.handleLocationAccess.bind(this);
+        window.addEventListener('locationaccesschanged', this.handleLocationAccess);
 
         this.setupUI();
     }
@@ -204,14 +209,8 @@ export class Game {
     }
 
     setupWeatherCycle() {
-        // Weather patterns cycle every 5-10 minutes
-        const weatherTypes = ['clear', 'cloudy', 'foggy', 'storm'];
-        let currentWeatherIndex = 0;
-
-        setInterval(() => {
-            currentWeatherIndex = (currentWeatherIndex + 1) % weatherTypes.length;
-            this.weatherSystem.setWeather(weatherTypes[currentWeatherIndex]);
-        }, 5 * 60 * 1000 + Math.random() * 5 * 60 * 1000); // Random time between 5-10 minutes
+        // Remove the old weather cycling code since we're now using real weather data
+        console.log('Weather system initialized with OpenWeatherMap integration');
     }
 
     update(deltaTime) {
@@ -869,6 +868,9 @@ export class Game {
 
         // Stop collision system
         this.collisionSystem.stop();
+
+        // Remove location access event listener
+        window.removeEventListener('locationaccesschanged', this.handleLocationAccess);
     }
 
     handleKeyDown(event) {
@@ -976,9 +978,40 @@ export class Game {
         this.timeDisplay.style.borderRadius = '5px';
         document.body.appendChild(this.timeDisplay);
 
+        // Create weather display element
+        this.weatherDisplay = document.createElement('div');
+        this.weatherDisplay.style.position = 'absolute';
+        this.weatherDisplay.style.top = '40px';
+        this.weatherDisplay.style.right = '10px';
+        this.weatherDisplay.style.color = 'white';
+        this.weatherDisplay.style.fontFamily = 'Arial, sans-serif';
+        this.weatherDisplay.style.fontSize = '16px';
+        this.weatherDisplay.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
+        this.weatherDisplay.style.padding = '5px 10px';
+        this.weatherDisplay.style.borderRadius = '5px';
+        document.body.appendChild(this.weatherDisplay);
+
         // Update time display every second
         setInterval(() => {
             this.timeDisplay.textContent = this.timeSystem.getCurrentTimeString();
         }, 1000);
+
+        // Update weather display every 5 minutes
+        setInterval(() => {
+            if (this.weatherSystem && this.weatherSystem.currentWeather) {
+                const weatherType = this.weatherSystem.currentWeather;
+                const weatherText = `Weather: ${weatherType.charAt(0).toUpperCase() + weatherType.slice(1)}`;
+                this.weatherDisplay.textContent = weatherText;
+            }
+        }, 1000);
+    }
+
+    handleLocationAccess(event) {
+        const { granted, error } = event.detail;
+        if (!granted) {
+            console.warn('Location access denied or not available:', error);
+            // Set default weather to clear if location access is denied
+            this.weatherSystem.setWeather('clear');
+        }
     }
 } 

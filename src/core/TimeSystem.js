@@ -30,9 +30,6 @@ export class TimeSystem {
         
         // Create star field
         this.createStarField();
-        
-        // Headlights setup
-        this.headlights = new Map(); // Will store vehicle headlights
     }
 
     initSky() {
@@ -361,53 +358,27 @@ export class TimeSystem {
     }
 
     updateTime() {
-        if (!this.isPaused) {
-            if (this.isTestMode && this.testTime !== null) {
-                this.currentTime = new Date(this.testTime);
-            } else {
-                // Get current local time
-                const now = new Date();
-                // Update currentTime to match local time
-                this.currentTime = new Date(now);
-            }
-        }
-        this.updateLighting();
-    }
+        if (this.isPaused) return;
 
-    toggleTestMode() {
-        this.isTestMode = !this.isTestMode;
-        if (this.isTestMode) {
-            // Force night time (e.g., 1 AM)
-            this.testTime = new Date();
-            this.testTime.setHours(1, 0, 0, 0);
+        // Update time
+        if (this.isTestMode && this.testTime) {
+            this.currentTime = new Date(this.testTime);
         } else {
-            this.testTime = null;
+            const deltaMs = (1000 / 60) * this.timeScale;
+            this.currentTime = new Date(this.currentTime.getTime() + deltaMs);
         }
-        console.log(`Test mode ${this.isTestMode ? 'enabled' : 'disabled'}, current time: ${this.getCurrentTimeString()}`);
-    }
 
-    updateLighting() {
-        const hours = this.currentTime.getHours();
-        const minutes = this.currentTime.getMinutes();
-        const timeOfDay = hours + minutes / 60;
-        
-        // Calculate sun position with more realistic parameters
-        // Map 24-hour time to 360 degrees, with noon at highest point (90 degrees)
-        // and midnight at lowest point (-90 degrees)
-        const timeAngle = ((timeOfDay - 12) / 12) * Math.PI; // Convert time to radians
-        const phi = Math.PI/2 - timeAngle; // Adjust for Three.js coordinate system
-        const theta = THREE.MathUtils.degToRad(180);
-        
-        this.sunPosition.setFromSphericalCoords(1000, phi, theta);
-        
+        // Get time of day (0-24)
+        const timeOfDay = this.getTimeOfDay();
+
         // Update sky parameters based on time of day
         if (timeOfDay >= 5 && timeOfDay < 7) {
             // Dawn
             const progress = (timeOfDay - 5) / 2;
-            this.skyParams.turbidity = 6 + progress * 4;
+            this.skyParams.turbidity = 8 + progress * 2;
             this.skyParams.rayleigh = 2 + progress * 1.5;
-            this.skyParams.mieCoefficient = 0.005 + progress * 0.005;
-            this.skyParams.elevation = -20 + progress * 32; // Steeper transition
+            this.skyParams.mieCoefficient = 0.002 + progress * 0.008;
+            this.skyParams.elevation = -20 + (progress * 32);
         } else if (timeOfDay >= 7 && timeOfDay < 17) {
             // Day
             const noonProgress = Math.sin((timeOfDay - 7) / 10 * Math.PI);
@@ -421,13 +392,13 @@ export class TimeSystem {
             this.skyParams.turbidity = 10 - progress * 2;
             this.skyParams.rayleigh = 3.5 - progress * 1.5;
             this.skyParams.mieCoefficient = 0.01 + progress * 0.01;
-            this.skyParams.elevation = 12 - (progress * 32); // Steeper transition
+            this.skyParams.elevation = 12 - (progress * 32);
         } else {
             // Night (19:00 - 5:00)
             this.skyParams.turbidity = 8;
             this.skyParams.rayleigh = 2;
             this.skyParams.mieCoefficient = 0.002;
-            this.skyParams.elevation = -20; // Keep sun well below horizon
+            this.skyParams.elevation = -20;
         }
 
         // Apply updated parameters
@@ -436,69 +407,18 @@ export class TimeSystem {
         this.skyUniforms.mieCoefficient.value = this.skyParams.mieCoefficient;
         this.skyUniforms.mieDirectionalG.value = this.skyParams.mieDirectionalG;
         this.skyUniforms.sunPosition.value.copy(this.sunPosition);
-        
-        // Update directional lights with more realistic colors
-        const sunColor = new THREE.Color();
-        if (timeOfDay >= 5 && timeOfDay < 7) {
-            // Dawn - warm orange
-            sunColor.setHSL(0.07, 1, 0.5 + (timeOfDay - 5) / 4);
-        } else if (timeOfDay >= 7 && timeOfDay < 17) {
-            // Day - bright white
-            sunColor.setHSL(0.12, 0.2, 0.8);
-        } else if (timeOfDay >= 17 && timeOfDay < 19) {
-            // Dusk - deep orange
-            sunColor.setHSL(0.07, 1, 0.5 - (timeOfDay - 17) / 4);
+    }
+
+    toggleTestMode() {
+        this.isTestMode = !this.isTestMode;
+        if (this.isTestMode) {
+            // Force night time (e.g., 1 AM)
+            this.testTime = new Date();
+            this.testTime.setHours(1, 0, 0, 0);
         } else {
-            // Night - slight blue tint
-            sunColor.setHSL(0.6, 0.2, 0.05); // Reduced brightness for night
+            this.testTime = null;
         }
-
-        this.sunLight.color.copy(sunColor);
-        this.moonLight.color.setHSL(0.6, 0.2, 0.2); // Subtle blue moonlight
-        
-        // Calculate intensities based on sun height
-        const sunHeight = Math.sin(timeAngle); // Use timeAngle for more accurate day/night cycle
-        const dayIntensity = Math.max(0, sunHeight);
-        const nightIntensity = Math.max(0, -sunHeight);
-        
-        // Update light intensities with smoother transitions
-        this.sunLight.intensity = dayIntensity * 1.2;
-        this.moonLight.intensity = nightIntensity * 0.3;
-        this.ambientLight.intensity = 0.1 + (dayIntensity * 0.4); // Reduced base ambient for darker nights
-        
-        // Update star visibility with smoother fade
-        const starOpacity = Math.max(0, Math.min(1, 
-            timeOfDay >= 19 ? 1 :
-            timeOfDay < 5 ? 1 :
-            timeOfDay < 7 ? 1 - ((timeOfDay - 5) / 2) : 0
-        ));
-        this.starField.material.uniforms.opacity.value = starOpacity;
-        
-        // Update headlights
-        this.updateHeadlights(timeOfDay);
-    }
-
-    addHeadlight(vehicleId, headlight) {
-        this.headlights.set(vehicleId, headlight);
-    }
-
-    removeHeadlight(vehicleId) {
-        this.headlights.delete(vehicleId);
-    }
-
-    updateHeadlights(timeOfDay) {
-        const isNight = timeOfDay >= 19 || timeOfDay < 5;
-        const isDawnDusk = (timeOfDay >= 5 && timeOfDay < 7) || (timeOfDay >= 17 && timeOfDay < 19);
-        
-        for (const [vehicleId, headlight] of this.headlights) {
-            if (isNight) {
-                headlight.intensity = 1.0;
-            } else if (isDawnDusk) {
-                headlight.intensity = 0.5;
-            } else {
-                headlight.intensity = 0.0;
-            }
-        }
+        console.log(`Test mode ${this.isTestMode ? 'enabled' : 'disabled'}, current time: ${this.getCurrentTimeString()}`);
     }
 
     getCurrentTime() {

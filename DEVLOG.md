@@ -38,7 +38,6 @@
     - Dynamic visibility based on time of day
   - Added shooting stars with trails
   - Implemented smooth transitions between day and night
-  - Added automatic headlight control for vehicles
   - Enhanced atmospheric scattering for dawn/dusk
   - Synchronized lighting with 24-hour cycle
   - Added support for different time zones

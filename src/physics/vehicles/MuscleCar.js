@@ -302,6 +302,12 @@ export class MuscleCar extends BaseCar {
             return;
         }
 
+        // Check ammo before firing
+        if (!this.useAmmo(1)) {
+            console.log("Cannot fire: no ammo remaining");
+            return;
+        }
+
         this.lastFireTime = currentTime;
 
         // Calculate firing positions for both guns

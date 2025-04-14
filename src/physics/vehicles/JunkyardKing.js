@@ -296,6 +296,12 @@ export class JunkyardKing extends BaseCar {
             return;
         }
 
+        // Check ammo before firing
+        if (!this.useAmmo(1)) {
+            console.log("Cannot fire: no ammo remaining");
+            return;
+        }
+
         // Get the barrel's world position
         const barrelTip = new THREE.Vector3();
         this.launcher.barrel.getWorldPosition(barrelTip);

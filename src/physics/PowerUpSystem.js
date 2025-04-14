@@ -476,52 +476,55 @@ export class PowerUpSystem {
 
     applyPowerUp(vehicle, powerUpId) {
         const powerUp = this.powerUps.get(powerUpId);
-        if (!powerUp || powerUp.collected) {
-            console.log('Power-up already collected or not found', { powerUpId, collected: powerUp?.collected });
+        if (!powerUp) {
+            console.warn('PowerUpSystem: Attempted to apply non-existent power-up:', powerUpId);
             return false;
         }
 
-        console.log('Applying power-up:', {
-            type: powerUp.type.id,
-            vehicle: vehicle.type,
+        const powerUpType = powerUp.type;
+        console.log('PowerUpSystem: Applying power-up', {
+            powerUpId,
+            type: powerUpType.id,
+            vehicle: vehicle,
             hasGame: !!this.game
         });
 
-        let success = false;
-        try {
-            // Pass the game instance for power-ups that need it
-            success = powerUp.type.apply(vehicle, this.game);
-            
-            if (success) {
-                console.log('Power-up applied successfully, removing...');
-                
-                // If the power-up has a duration, add it to active effects
-                if (powerUp.type.duration) {
-                    const effectId = this.nextEffectId++;
-                    this.activeEffects.set(effectId, {
-                        type: powerUp.type,
-                        vehicleId: vehicle.id,
-                        vehicle: vehicle,
-                        expiresAt: Date.now() + powerUp.type.duration
-                    });
+        // Apply the power-up effect, passing the game instance for mine power-ups
+        const applied = powerUpType.apply(vehicle, this.game);
+
+        if (applied) {
+            // If the power-up has a duration, create a timed effect
+            if (powerUpType.duration) {
+                const effectId = this.nextEffectId++;
+                const effect = {
+                    id: effectId,
+                    type: powerUpType,
+                    vehicle: vehicle,
+                    vehicleId: vehicle.id,
+                    expiresAt: Date.now() + powerUpType.duration
+                };
+                this.activeEffects.set(effectId, effect);
+
+                // Update the display
+                if (this.powerUpDisplay) {
+                    this.powerUpDisplay.addPowerUp(powerUpType.id, powerUpType.duration);
                 }
 
-                // Mark as collected and remove the power-up
-                powerUp.collected = true;
-                this.removePowerUp(powerUpId);
-                
-                // Notify display
-                if (this.powerUpDisplay) {
-                    this.powerUpDisplay.showPowerUp(powerUp.type);
-                }
-            } else {
-                console.log('Power-up application failed');
+                // Schedule the effect to be removed
+                setTimeout(() => {
+                    if (powerUpType.revert) {
+                        powerUpType.revert(vehicle);
+                    }
+                    this.activeEffects.delete(effectId);
+                }, powerUpType.duration);
             }
-        } catch (error) {
-            console.error('Error applying power-up:', error);
+
+            // Remove the power-up object
+            this.removePowerUp(powerUpId);
+            return true;
         }
 
-        return success;
+        return false;
     }
 
     removePowerUp(powerUpId) {

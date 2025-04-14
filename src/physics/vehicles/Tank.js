@@ -329,6 +329,12 @@ export class Tank extends BaseCar {
             return;
         }
 
+        // Check ammo before firing
+        if (!this.useAmmo(1)) {
+            console.log("Cannot fire: no ammo remaining");
+            return;
+        }
+
         // Get the barrel's world matrix
         const barrelMatrix = new THREE.Matrix4();
         barrelMatrix.copy(this.turret.barrel.matrixWorld);

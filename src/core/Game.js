@@ -5,17 +5,17 @@ import { InputManager } from './InputManager.js';
 import { CameraManager } from '../rendering/CameraManager.js';
 import { GameLoop } from './GameLoop.js';
 import { DebugManager } from './DebugManager.js';
-import { VehicleSelector } from '../rendering/VehicleSelector.js';
-import { HealthDisplay } from '../rendering/HealthDisplay.js';
+import { VehicleSelector } from '../ui/VehicleSelector.js';
+import { HealthBar } from '../ui/HealthBar.js';
 import { BaseCar } from '../physics/vehicles/BaseCar.js';
 import { TestTarget } from '../physics/TestTarget.js';
 import * as CANNON from 'cannon-es';
 import * as THREE from 'three';
 import { PowerUpSystem, POWER_UP_TYPES } from '../physics/PowerUpSystem.js';
-import { PowerUpDisplay } from '../rendering/PowerUpDisplay.js';
-import { AmmoDisplay } from '../rendering/AmmoDisplay.js';
-import { MineSystem } from '../physics/MineSystem';
-import { MineDisplay } from '../rendering/MineDisplay.js';
+import { PowerUpDisplay } from '../ui/PowerUpDisplay.js';
+import { AmmoDisplay } from '../ui/AmmoDisplay.js';
+import { MineSystem } from '../physics/MineSystem.js';
+import { MineDisplay } from '../ui/MineDisplay.js';
 import { TimeSystem } from './TimeSystem.js';
 import { WeatherSystem } from './WeatherSystem.js';
 
@@ -41,7 +41,11 @@ export class Game {
         // Vehicle selection
         this.vehicleSelector = null;
 
+        // Initialize UI components as null
         this.healthDisplay = null;
+        this.ammoDisplay = null;
+        this.mineDisplay = null;
+        this.powerUpDisplay = null;
 
         // Respawn state
         this.isRespawning = false;
@@ -61,29 +65,12 @@ export class Game {
             timer: this.powerUpSpawnTimer
         });
         
-        // Initialize these as null for now
+        // Initialize power-up system as null
         this.powerUpSystem = null;
-        this.powerUpDisplay = null;
-
-        // Initialize ammo display
-        try {
-            this.ammoDisplay = new AmmoDisplay();
-            console.log('Ammo display initialized');
-        } catch (error) {
-            console.error('Failed to initialize ammo display:', error);
-        }
 
         // Initialize mine system
         this.mineSystem = new MineSystem(this.physicsWorld.world, this.sceneManager.scene);
         console.log('Mine system initialized');
-
-        // Initialize mine display
-        try {
-            this.mineDisplay = new MineDisplay();
-            console.log('Mine display initialized');
-        } catch (error) {
-            console.error('Failed to initialize mine display:', error);
-        }
 
         // Initialize input state
         this.inputState = {
@@ -114,48 +101,45 @@ export class Game {
         try {
             console.log('Starting game initialization...');
 
-            // Initialize systems
+            // Initialize core systems first
             console.log('Initializing scene manager...');
             this.sceneManager.init();
 
-            // Initialize time system first
             console.log('Initializing time system...');
             this.timeSystem = new TimeSystem(this.sceneManager.scene);
-            // Add time system to scene for vehicle access
             this.sceneManager.scene.timeSystem = this.timeSystem;
 
             console.log('Initializing physics world...');
             this.physicsWorld.init();
 
+            console.log('Initializing camera...');
+            this.cameraManager.init(this.sceneManager.scene);
+
+            // Initialize UI components
+            console.log('Initializing UI components...');
+            this.healthDisplay = new HealthBar();
+            this.ammoDisplay = new AmmoDisplay();
+            this.mineDisplay = new MineDisplay();
+            this.powerUpDisplay = new PowerUpDisplay(this.sceneManager.scene, this.cameraManager.camera);
+
+            // Initialize gameplay systems
+            console.log('Initializing gameplay systems...');
+            this.vehicleFactory = new VehicleFactory(this.physicsWorld.world, this.sceneManager.scene, this);
+            this.mineSystem = new MineSystem(this.physicsWorld.world, this.sceneManager.scene);
+            this.powerUpSystem = new PowerUpSystem(this.physicsWorld.world, this.sceneManager.scene, this.powerUpDisplay);
+            this.powerUpSystem.game = this;
+
+            // Initialize debug manager last
             console.log('Initializing debug manager...');
             this.debugManager = new DebugManager(this.sceneManager.scene, this.physicsWorld.world);
             this.debugManager.init();
 
-            console.log('Initializing camera...');
-            this.cameraManager.init(this.sceneManager.scene);
+            // Initialize vehicle selector and show it
+            console.log('Initializing vehicle selector...');
+            this.vehicleSelector = new VehicleSelector(this);
+            this.vehicleSelector.show();
 
-            console.log('Creating vehicle factory...');
-            this.vehicleFactory = new VehicleFactory(this.physicsWorld.world, this.sceneManager.scene, this);
-            
-            // Create player vehicle (Ironclad)
-            console.log('Creating player vehicle...');
-            this.playerVehicle = this.vehicleFactory.createVehicle('ironclad');
-            this.playerVehicle.inputManager = this.inputManager; // Pass input manager for turret control
-
-            // Set initial vehicle position and rotation
-            if (this.playerVehicle.vehicle && this.playerVehicle.vehicle.chassisBody) {
-                this.playerVehicle.vehicle.chassisBody.position.set(0, 1.2, 0);
-                this.playerVehicle.vehicle.chassisBody.quaternion.setFromAxisAngle(
-                    new CANNON.Vec3(0, 1, 0),
-                    Math.PI // Rotate 180 degrees to face forward
-                );
-            }
-
-            // Set camera target and offset after vehicle is created
-            console.log('Setting up camera target...');
-            this.cameraManager.setTarget(this.playerVehicle);
-            
-            // Create test target wall after camera is initialized
+            // Create test target wall
             console.log('Creating test target...');
             this.testTarget = new TestTarget(
                 this.physicsWorld.world,
@@ -164,49 +148,10 @@ export class Game {
                 new CANNON.Vec3(0, 4, -20) // Position the wall in front of the vehicle
             );
 
-            // Initialize power-up display first
-            console.log('Initializing power-up display...');
-            try {
-                this.powerUpDisplay = new PowerUpDisplay(this.sceneManager.scene, this.cameraManager.camera);
-                console.log('Power-up display initialized:', {
-                    hasDisplay: !!this.powerUpDisplay,
-                    hasContainer: !!this.powerUpDisplay?.container,
-                    hasScene: !!this.sceneManager.scene,
-                    hasCamera: !!this.cameraManager.camera
-                });
-            } catch (error) {
-                console.error('Failed to initialize power-up display:', error);
-            }
-
-            // Initialize power-up system with display
-            console.log('Initializing power-up system...');
-            console.log('Checking dependencies:', {
-                hasPhysicsWorld: !!this.physicsWorld,
-                hasScene: !!this.sceneManager.scene,
-                hasPowerUpSystemClass: !!PowerUpSystem,
-                hasPowerUpTypes: !!POWER_UP_TYPES,
-                hasPowerUpDisplay: !!this.powerUpDisplay
-            });
-            
-            try {
-                this.powerUpSystem = new PowerUpSystem(
-                    this.physicsWorld.world, 
-                    this.sceneManager.scene,
-                    this.powerUpDisplay
-                );
-                // Set the game instance in the power-up system
-                this.powerUpSystem.game = this;
-                console.log('Power-up system initialized:', {
-                    hasWorld: !!this.physicsWorld.world,
-                    hasScene: !!this.sceneManager.scene,
-                    powerUpSystem: !!this.powerUpSystem,
-                    powerUpTypes: Object.keys(POWER_UP_TYPES || {}),
-                    hasDisplay: !!this.powerUpDisplay,
-                    hasGame: !!this.powerUpSystem.game
-                });
-            } catch (error) {
-                console.error('Failed to initialize power-up system:', error);
-            }
+            // Set up controls and weather
+            this._setupControls();
+            this.weatherSystem.setWeather('clear');
+            this.setupWeatherCycle();
 
             // Start game loop
             console.log('Starting game loop...');
@@ -219,24 +164,7 @@ export class Game {
                 loadingScreen.style.display = 'none';
             }
 
-            // Create health display
-            console.log('Initializing health display...');
-            this.healthDisplay = new HealthDisplay();
-            console.log('Health display initialized');
-            
             console.log('Game ready!');
-
-            // Initialize vehicle selector
-            this.vehicleSelector = new VehicleSelector(this);
-            this.vehicleSelector.show();
-
-            this._setupControls();
-
-            // Start with clear weather
-            this.weatherSystem.setWeather('clear');
-            
-            // Set up weather change interval
-            this.setupWeatherCycle();
 
         } catch (error) {
             console.error('Failed to initialize game:', error);
@@ -264,96 +192,61 @@ export class Game {
     update(deltaTime) {
         // Handle input first
         this.handleInput(deltaTime);
-        
-        // Then update input manager to clear the pressed keys
         this.inputManager.update();
         
         // Update physics
         this.physicsWorld.world.step(1/60, deltaTime, 3);
         
-        // Update camera
+        // Update core systems
         this.cameraManager.update(deltaTime);
-        
-        // Update vehicle factory
         this.vehicleFactory.update(deltaTime);
-        
-        // Update ammo display if player vehicle exists
-        if (this.playerVehicle && this.ammoDisplay) {
-            this.ammoDisplay.updateAmmo(this.playerVehicle.getAmmo());
-            this.ammoDisplay.setVisible(true);
-        } else if (this.ammoDisplay) {
-            this.ammoDisplay.setVisible(false);
-        }
+        this.timeSystem.updateTime();
+        this.weatherSystem.update(deltaTime);
         
         // Update debug visualization
         if (this.debugManager) {
             this.debugManager.update();
         }
 
-        // Update player vehicle and handle respawn
+        // Update player vehicle and related systems
         if (this.playerVehicle) {
             this.playerVehicle.update(deltaTime);
 
-            // Check for power-up collisions
-            if (this.powerUpSystem && this.playerVehicle.vehicle) {
-                const vehicleBody = this.playerVehicle.vehicle.chassisBody;
-                for (const [powerUpId, powerUp] of this.powerUpSystem.powerUps) {
-                    // Skip if power-up is already collected
-                    if (powerUp.collected) continue;
-                    
-                    const distance = vehicleBody.position.distanceTo(powerUp.body.position);
-                    if (distance < 3.0) { // Increased collision distance to match new size
-                        console.log('Power-up collision detected:', {
-                            powerUpId,
-                            type: powerUp.type.id,
-                            distance
-                        });
-                        this.handlePowerUpCollision(powerUpId);
-                        break; // Exit loop after handling one collision
-                    }
-                }
+            // Update UI displays
+            if (this.ammoDisplay) {
+                const currentAmmo = this.playerVehicle.getAmmo() || 0;
+                this.ammoDisplay.updateAmmo(currentAmmo);
+                this.ammoDisplay.setVisible(true);
             }
 
-            // Update health display
             if (this.healthDisplay && this.playerVehicle.damageSystem) {
                 const currentHealth = this.playerVehicle.damageSystem.currentHealth || 100;
                 const maxHealth = this.playerVehicle.damageSystem.options?.maxHealth || 100;
                 this.healthDisplay.update(currentHealth, maxHealth);
 
-                // Check for vehicle destruction
+                // Handle vehicle destruction and respawn
                 if (this.playerVehicle.damageSystem.isDestroyed && !this.isRespawning) {
-                    console.log('Vehicle destroyed, starting respawn countdown');
                     this.isRespawning = true;
-                    this.respawnCountdown = 10.0; // 10 seconds respawn time
-                    if (this.healthDisplay) {
-                        console.log('Showing respawn counter');
-                        this.healthDisplay.showRespawnCounter(this.respawnCountdown);
-                    }
+                    this.respawnCountdown = 10.0;
+                    this.healthDisplay.showRespawnCounter(this.respawnCountdown);
                 }
             }
 
             // Update respawn countdown
             if (this.isRespawning) {
                 this.respawnCountdown = Math.max(0, this.respawnCountdown - deltaTime);
-                console.log('Respawn countdown:', this.respawnCountdown.toFixed(1));
-                
                 if (this.healthDisplay) {
                     this.healthDisplay.updateRespawnCounter(this.respawnCountdown);
                 }
-                
                 if (this.respawnCountdown <= 0) {
-                    console.log('Respawn countdown complete, respawning vehicle');
                     this._respawnVehicle();
                 }
             }
+        } else if (this.ammoDisplay) {
+            this.ammoDisplay.setVisible(false);
         }
 
-        // Update test target
-        if (this.testTarget) {
-            this.testTarget.update();
-        }
-
-        // Update power-up system
+        // Update power-up system and check collisions
         if (this.powerUpSystem) {
             this.powerUpSystem.update(deltaTime);
             
@@ -363,110 +256,60 @@ export class Game {
                 this.spawnRandomPowerUp();
                 this.powerUpSpawnTimer = 0;
             }
-            
-            // Check for power-up collisions - use a single consistent distance check
-            if (this.playerVehicle && this.playerVehicle.vehicle) {
-                const playerPos = this.playerVehicle.vehicle.chassisBody.position;
-                for (const [id, powerUp] of this.powerUpSystem.powerUps) {
-                    const distance = playerPos.distanceTo(powerUp.body.position);
-                    if (distance < 2.0 && !powerUp.collected) { // Add collected check
-                        console.log('Power-up collision detected', {
-                            powerUpId: id,
-                            type: powerUp.type.id,
-                            distance
-                        });
-                        this.handlePowerUpCollision(id);
-                        // Mark power-up as collected to prevent multiple collections
-                        powerUp.collected = true;
-                    }
-                }
-            }
         }
-        
+
         // Update power-up display
         if (this.powerUpDisplay) {
-            this.powerUpDisplay.update();
+            this.powerUpDisplay.update(deltaTime);
         }
 
-        // Handle mine deployment
-        if (this.inputState.deployMine && this.inputState.lookingBack && this.playerVehicle && this.playerVehicle.vehicle) {
-            const vehiclePosition = this.playerVehicle.vehicle.chassisBody.position;
-            // Get vehicle's backward direction
-            const direction = new THREE.Vector3();
-            this.playerVehicle.vehicle.chassisBody.quaternion.vmult(new CANNON.Vec3(0, 0, -1), direction);
-            
-            // Place mine behind the vehicle
-            const minePosition = new THREE.Vector3(
-                vehiclePosition.x - direction.x * 2, // 2 units behind
-                vehiclePosition.y - 0.5, // Slightly lower than vehicle
-                vehiclePosition.z - direction.z * 2
-            );
-            
-            // Try to deploy mine
-            const mineId = this.mineSystem.createMine(minePosition);
-            if (mineId !== null) {
-                console.log('Mine deployed at position:', minePosition);
-                
-                // Update mine counter in HUD to show remaining mines
-                if (this.mineDisplay) {
-                    this.mineDisplay.updateCount(this.mineSystem.currentMines);
-                }
-            } else {
-                console.log('No mines available to deploy');
-            }
-            
-            this.inputState.deployMine = false; // Reset flag
-        }
-        
         // Update mine system
-        this.mineSystem.update(deltaTime);
-        
-        // Update mine display when mines are resupplied
-        if (this.mineDisplay && this.mineSystem) {
-            this.mineDisplay.updateCount(this.mineSystem.currentMines);
-        }
-        
-        // Check for collisions between vehicles and mines
-        if (this.playerVehicle && this.playerVehicle.vehicle) {
-            for (const [mineId, mine] of this.mineSystem.mines.entries()) {
-                if (!mine.active) continue;
+        if (this.mineSystem) {
+            this.mineSystem.update(deltaTime);
+            
+            // Handle mine deployment
+            if (this.inputState.deployMine && this.inputState.lookingBack && this.playerVehicle?.vehicle) {
+                const vehiclePosition = this.playerVehicle.vehicle.chassisBody.position;
+                const direction = new THREE.Vector3();
+                this.playerVehicle.vehicle.chassisBody.quaternion.vmult(new CANNON.Vec3(0, 0, -1), direction);
                 
-                const minePos = mine.body.position;
+                const minePosition = new THREE.Vector3(
+                    vehiclePosition.x - direction.x * 2,
+                    vehiclePosition.y - 0.5,
+                    vehiclePosition.z - direction.z * 2
+                );
+                
+                const mineId = this.mineSystem.createMine(minePosition);
+                if (mineId !== null && this.mineDisplay) {
+                    this.mineDisplay.updateCount(this.mineSystem.currentMines, this.mineSystem.maxMines);
+                }
+                
+                this.inputState.deployMine = false;
+            }
+
+            // Update mine display
+            if (this.mineDisplay && this.mineSystem) {
+                this.mineDisplay.updateCount(this.mineSystem.currentMines, this.mineSystem.maxMines);
+            }
+
+            // Check mine collisions
+            if (this.playerVehicle?.vehicle) {
                 const vehiclePos = this.playerVehicle.vehicle.chassisBody.position;
-                const distance = minePos.distanceTo(vehiclePos);
-                
-                if (distance < 2.0) { // Collision threshold
-                    console.log(`Vehicle hit mine ${mineId}`);
-                    this.mineSystem.explodeMine(mineId);
-                    // Apply damage using the damage system
-                    if (this.playerVehicle.damageSystem) {
-                        this.playerVehicle.damageSystem.applyDamage(50, minePos); // 50 damage per mine, pass mine position
-                        console.log('Applied mine damage to vehicle');
+                for (const [mineId, mine] of this.mineSystem.mines.entries()) {
+                    if (mine.active && mine.body.position.distanceTo(vehiclePos) < 2.0) {
+                        this.mineSystem.explodeMine(mineId);
+                        if (this.playerVehicle.damageSystem) {
+                            this.playerVehicle.damageSystem.applyDamage(50, mine.body.position);
+                        }
                     }
                 }
             }
         }
 
-        // Visual feedback for looking back
-        if (this.inputState.lookingBack) {
-            console.log('Looking back - ready to deploy mine');
-            // TODO: Add visual indicator for looking back
+        // Update test target
+        if (this.testTarget) {
+            this.testTarget.update();
         }
-
-        // Visual feedback for mine deployment
-        if (this.inputState.deployMine && this.inputState.lookingBack) {
-            console.log('Deploying mine...');
-            // TODO: Add visual effect for mine deployment
-            
-            // Reset deploy flag
-            this.inputState.deployMine = false;
-        }
-
-        // Update time system
-        this.timeSystem.updateTime();
-
-        // Update weather system
-        this.weatherSystem.update(deltaTime);
 
         // Render scene
         this.sceneManager.render(this.cameraManager.camera);
@@ -474,10 +317,6 @@ export class Game {
 
     handleInput(deltaTime) {
         if (!this.playerVehicle || !this.playerVehicle._vehicle) {
-            console.log('No vehicle available for input:', {
-                hasPlayer: !!this.playerVehicle,
-                hasVehicle: !!(this.playerVehicle && this.playerVehicle._vehicle)
-            });
             return;
         }
 
@@ -728,6 +567,37 @@ export class Game {
         }
     }
     
+    handleCollision(event) {
+        const bodyA = event.bodyA;
+        const bodyB = event.bodyB;
+
+        // Check if either body is a power-up (collision group 2)
+        let powerUpBody, vehicleBody;
+        if (bodyA.collisionFilterGroup === 2) {
+            powerUpBody = bodyA;
+            vehicleBody = bodyB;
+        } else if (bodyB.collisionFilterGroup === 2) {
+            powerUpBody = bodyB;
+            vehicleBody = bodyA;
+        }
+
+        // If we found a power-up collision
+        if (powerUpBody && vehicleBody && vehicleBody.userData?.vehicle === this.playerVehicle) {
+            // Find the power-up ID
+            let powerUpId = null;
+            for (const [id, powerUp] of this.powerUpSystem.powerUps) {
+                if (powerUp.body === powerUpBody && !powerUp.collected) {
+                    powerUpId = id;
+                    break;
+                }
+            }
+
+            if (powerUpId !== null) {
+                this.handlePowerUpCollision(powerUpId);
+            }
+        }
+    }
+
     handlePowerUpCollision(powerUpId) {
         if (!this.powerUpSystem || !this.playerVehicle) {
             console.error('Cannot handle power-up collision: missing powerUpSystem or playerVehicle');
@@ -740,12 +610,14 @@ export class Game {
         // Mark as collected immediately to prevent multiple collections
         powerUp.collected = true;
         
+        // Pass the game instance for mine power-ups
         const success = this.powerUpSystem.applyPowerUp(this.playerVehicle, powerUpId);
         if (success) {
-            console.log('Power-up applied successfully');
+            console.log('Power-up applied successfully:', powerUp.type.id);
             // Remove the power-up
             this.powerUpSystem.removePowerUp(powerUpId);
         } else {
+            console.log('Failed to apply power-up:', powerUp.type.id);
             // If application failed, unmark as collected so it can be collected again
             powerUp.collected = false;
         }
@@ -820,39 +692,6 @@ export class Game {
     handleMouseUp(event) {
         if (event.button === 2) {
             this.inputState.deployMine = false;
-        }
-    }
-
-    handleCollision(event) {
-        const bodyA = event.bodyA;
-        const bodyB = event.bodyB;
-
-        // Check if either body is a power-up (collision group 2)
-        let powerUpBody, vehicleBody;
-        if (bodyA.collisionFilterGroup === 2) {
-            powerUpBody = bodyA;
-            vehicleBody = bodyB;
-        } else if (bodyB.collisionFilterGroup === 2) {
-            powerUpBody = bodyB;
-            vehicleBody = bodyA;
-        }
-
-        // If we found a power-up collision
-        if (powerUpBody && vehicleBody) {
-            // Find the power-up ID
-            let powerUpId = null;
-            for (const [id, powerUp] of this.powerUpSystem.powerUps) {
-                if (powerUp.body === powerUpBody) {
-                    powerUpId = id;
-                    break;
-                }
-            }
-
-            if (powerUpId !== null) {
-                console.log('Power-up collected:', powerUpId);
-                // Apply the power-up effect
-                this.powerUpSystem.applyPowerUp(this.playerVehicle, powerUpId);
-            }
         }
     }
 

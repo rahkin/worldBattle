@@ -96,6 +96,9 @@ export class BaseCar {
 
         // Create or update health bar
         this.updateHealthBar(1.0);
+
+        this.originalEngineForce = 1800;
+        this.originalDamageResistance = options.damageResistance || 1.0;
     }
 
     _createCar() {
@@ -103,7 +106,12 @@ export class BaseCar {
 
         // Chassis
         const chassisShape = new CANNON.Box(new CANNON.Vec3(o.width, o.height, o.length));
-        const chassisBody = new CANNON.Body({ mass: o.mass });
+        const chassisBody = new CANNON.Body({ 
+            mass: o.mass,
+            material: this.powerUpMaterial,
+            collisionFilterGroup: 1,  // Vehicle group
+            collisionFilterMask: -1   // Collide with everything
+        });
         chassisBody.addShape(chassisShape);
         const spawnPos = o.spawnPosition || new CANNON.Vec3(0, 1.2, 0);
         chassisBody.position.copy(spawnPos);
@@ -312,16 +320,6 @@ export class BaseCar {
             this.recoveryCooldown -= deltaTime;
             if (this.recoveryCooldown <= 0) {
                 this.canRecover = true;
-            }
-        }
-
-        // Check for power-up collisions
-        if (this.game && this.game.powerUpSystem) {
-            for (const [powerUpId, powerUp] of this.game.powerUpSystem.powerUps) {
-                const distance = this._vehicle.chassisBody.position.distanceTo(powerUp.body.position);
-                if (distance < 1.0) { // Collision radius
-                    this.game.handlePowerUpCollision(this, powerUpId);
-                }
             }
         }
 
@@ -571,7 +569,11 @@ export class BaseCar {
 
     addAmmo(amount) {
         this.ammo += amount;
-        console.log(`Added ${amount} ammo to ${this.type}. New total: ${this.ammo}`);
+        return amount;
+    }
+
+    getMaxAmmo() {
+        return Infinity;
     }
 
     deployMine() {
@@ -680,5 +682,46 @@ export class BaseCar {
             console.log('Vehicle destroyed');
             this.damageSystem.isDestroyed = true;
         }
+    }
+
+    setBraking(braking) {
+        if (!this._vehicle) return;
+        
+        // Apply braking to all wheels
+        for (let i = 0; i < this._vehicle.wheelInfos.length; i++) {
+            this._vehicle.setBrake(braking ? 100 : 0, i);
+        }
+    }
+
+    // Add boost functionality
+    boost(active) {
+        if (active) {
+            // Store original engine force
+            this._originalEngineForce = this.originalEngineForce;
+            // Increase engine force by ~22%
+            this.originalEngineForce = 2200;
+        } else if (this._originalEngineForce) {
+            // Restore original engine force
+            this.originalEngineForce = this._originalEngineForce;
+            delete this._originalEngineForce;
+        }
+        return true;
+    }
+
+    // Add shield functionality
+    shield(active) {
+        if (!this.damageSystem) return false;
+
+        if (active) {
+            // Store original damage resistance
+            this._originalDamageResistance = this.originalDamageResistance;
+            // Increase damage resistance by 75%
+            this.originalDamageResistance = 0.25;
+        } else if (this._originalDamageResistance !== undefined) {
+            // Restore original damage resistance
+            this.originalDamageResistance = this._originalDamageResistance;
+            delete this._originalDamageResistance;
+        }
+        return true;
     }
 } 

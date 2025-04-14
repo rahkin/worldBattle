@@ -1,0 +1,64 @@
+.hud-element {
+    position: absolute;
+    background-color: rgba(0, 0, 0, 0.7);
+    border-radius: 3px;
+    padding: 5px;
+    color: white;
+    font-family: Arial, sans-serif;
+    left: 10px;
+    width: 200px;
+}
+
+/* Health Display */
+#health-display {
+    top: 10px;
+}
+
+.health-bar {
+    width: 100%;
+    height: 15px;
+    background-color: rgb(0, 0, 0);
+    border-radius: 2px;
+    overflow: hidden;
+}
+
+.health-fill {
+    height: 100%;
+    width: 100%;
+    background-color: #00ff00;
+    transition: width 0.2s, background-color 0.2s;
+}
+
+.health-text {
+    text-align: center;
+    font-size: 14px;
+    margin-top: 2px;
+}
+
+/* Ammo Display */
+#ammo-display {
+    top: 45px;
+    background-color: rgba(0, 0, 0, 0.7);
+    padding: 5px;
+}
+
+/* Mine Display */
+#mine-display {
+    top: 80px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 8px;
+}
+
+.mine-icon {
+    width: 12px;
+    height: 12px;
+    background-color: #00ff00;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.mine-count {
+    font-size: 14px;
+} 

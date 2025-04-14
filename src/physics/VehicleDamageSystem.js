@@ -355,4 +355,24 @@ export class VehicleDamageSystem {
             this.vehicle.chassisMesh.material.metalness = 0.5;
         }
     }
+
+    heal(amount) {
+        if (this.isDestroyed || this.isRespawning) return; // Don't heal if destroyed or respawning
+        
+        const oldHealth = this.currentHealth;
+        this.currentHealth = Math.min(this.maxHealth, this.currentHealth + amount);
+        
+        console.log('Health after healing:', {
+            oldHealth,
+            healAmount: amount,
+            newHealth: this.currentHealth
+        });
+        
+        // Clear damage effects if health improved significantly
+        if (this.currentHealth > oldHealth) {
+            this._updateDamageState();
+        }
+        
+        return this.currentHealth - oldHealth; // Return amount actually healed
+    }
 } 

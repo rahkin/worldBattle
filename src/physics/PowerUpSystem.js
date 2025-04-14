@@ -104,35 +104,92 @@ export const POWER_UP_TYPES = {
     OVERCHARGE: {
         id: 'overcharge',
         name: 'Weapon Overcharge',
-        color: 0x0000ff,
-        emissiveColor: 0x0000ff,
+        color: 0xff00ff,
+        emissiveColor: 0xff00ff,
         duration: 5000,
         apply: (vehicle) => {
-            if (vehicle._weaponSystem) {
+            // Check for weapon properties in both locations
+            const weapon = vehicle.weapon || vehicle.options;
+            if (weapon && (weapon.projectileDamage !== undefined || weapon.weaponDamage !== undefined)) {
                 // Store original values
-                vehicle._weaponSystem._originalDamage = vehicle._weaponSystem.projectileDamage;
-                vehicle._weaponSystem._originalFireRate = vehicle._weaponSystem.fireRate;
+                const originalDamage = weapon.projectileDamage || weapon.weaponDamage;
+                const originalFireRate = weapon.fireRate || weapon.weaponFireRate;
+                
+                // Store originals for revert
+                weapon._originalDamage = originalDamage;
+                weapon._originalFireRate = originalFireRate;
                 
                 // Apply overcharge
-                vehicle._weaponSystem.projectileDamage *= 1.5;
-                vehicle._weaponSystem.fireRate *= 0.7;
+                if (weapon.projectileDamage !== undefined) {
+                    weapon.projectileDamage *= 2.0;
+                } else {
+                    weapon.weaponDamage *= 2.0;
+                }
+                
+                if (weapon.fireRate !== undefined) {
+                    weapon.fireRate *= 0.5;
+                } else {
+                    weapon.weaponFireRate *= 0.5;
+                }
                 
                 console.log('Applied overcharge:', {
-                    originalDamage: vehicle._weaponSystem._originalDamage,
-                    newDamage: vehicle._weaponSystem.projectileDamage,
-                    originalFireRate: vehicle._weaponSystem._originalFireRate,
-                    newFireRate: vehicle._weaponSystem.fireRate
+                    originalDamage,
+                    newDamage: weapon.projectileDamage || weapon.weaponDamage,
+                    originalFireRate,
+                    newFireRate: weapon.fireRate || weapon.weaponFireRate
                 });
+
+                // Add visual effect
+                if (vehicle.mesh) {
+                    // Create overcharge effect
+                    const effect = new THREE.Group();
+                    const geometry = new THREE.SphereGeometry(1.5, 32, 32);
+                    const material = new THREE.MeshBasicMaterial({
+                        color: 0xff00ff,
+                        transparent: true,
+                        opacity: 0.3,
+                        blending: THREE.AdditiveBlending
+                    });
+                    const sphere = new THREE.Mesh(geometry, material);
+                    effect.add(sphere);
+                    
+                    // Add to vehicle
+                    vehicle.mesh.add(effect);
+                    vehicle._overchargeEffect = effect;
+                }
+                
                 return true;
             }
+            console.warn('Failed to apply overcharge: No weapon system found on vehicle:', vehicle);
             return false;
         },
         revert: (vehicle) => {
-            if (vehicle._weaponSystem && vehicle._weaponSystem._originalDamage) {
-                vehicle._weaponSystem.projectileDamage = vehicle._weaponSystem._originalDamage;
-                vehicle._weaponSystem.fireRate = vehicle._weaponSystem._originalFireRate;
-                delete vehicle._weaponSystem._originalDamage;
-                delete vehicle._weaponSystem._originalFireRate;
+            const weapon = vehicle.weapon || vehicle.options;
+            if (weapon && weapon._originalDamage !== undefined) {
+                // Restore original values
+                if (weapon.projectileDamage !== undefined) {
+                    weapon.projectileDamage = weapon._originalDamage;
+                } else {
+                    weapon.weaponDamage = weapon._originalDamage;
+                }
+                
+                if (weapon.fireRate !== undefined) {
+                    weapon.fireRate = weapon._originalFireRate;
+                } else {
+                    weapon.weaponFireRate = weapon._originalFireRate;
+                }
+                
+                // Clean up stored values
+                delete weapon._originalDamage;
+                delete weapon._originalFireRate;
+                
+                // Remove visual effect
+                if (vehicle._overchargeEffect && vehicle.mesh) {
+                    vehicle.mesh.remove(vehicle._overchargeEffect);
+                    vehicle._overchargeEffect.geometry.dispose();
+                    vehicle._overchargeEffect.material.dispose();
+                    delete vehicle._overchargeEffect;
+                }
             }
         }
     },
@@ -381,7 +438,7 @@ export class PowerUpSystem {
                 
                 // Update power-up display
                 if (this.powerUpDisplay) {
-                    this.powerUpDisplay.updateActiveEffects(this.activeEffects);
+                    this.powerUpDisplay.removePowerUp(effect.type.id);
                 }
             }
         }

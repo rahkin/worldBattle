@@ -268,20 +268,39 @@ export class Game {
             this.mineSystem.update(deltaTime);
             
             // Handle mine deployment
-            if (this.inputState.deployMine && this.inputState.lookingBack && this.playerVehicle?.vehicle) {
-                const vehiclePosition = this.playerVehicle.vehicle.chassisBody.position;
-                const direction = new THREE.Vector3();
-                this.playerVehicle.vehicle.chassisBody.quaternion.vmult(new CANNON.Vec3(0, 0, -1), direction);
+            if (this.inputState.deployMine && this.playerVehicle && this.mineSystem) {
+                console.log('Attempting to deploy mine');
+                // Get position slightly behind the vehicle
+                const vehiclePosition = this.playerVehicle._vehicle.chassisBody.position;
+                const vehicleQuaternion = this.playerVehicle._vehicle.chassisBody.quaternion;
                 
-                const minePosition = new THREE.Vector3(
-                    vehiclePosition.x - direction.x * 2,
-                    vehiclePosition.y - 0.5,
-                    vehiclePosition.z - direction.z * 2
+                // Calculate position behind vehicle
+                const backward = new THREE.Vector3(0, 0, 1);
+                backward.applyQuaternion(new THREE.Quaternion(
+                    vehicleQuaternion.x,
+                    vehicleQuaternion.y,
+                    vehicleQuaternion.z,
+                    vehicleQuaternion.w
+                ));
+                
+                const minePosition = new CANNON.Vec3(
+                    vehiclePosition.x - backward.x * 2,
+                    vehiclePosition.y - 0.5, // Slightly below vehicle
+                    vehiclePosition.z - backward.z * 2
+                );
+
+                console.log('Creating mine at position:', minePosition);
+                const mineId = this.mineSystem.createMine(
+                    minePosition,
+                    {},
+                    this.playerVehicle._vehicle.chassisBody.vehicleId
                 );
                 
-                const mineId = this.mineSystem.createMine(minePosition);
-                if (mineId !== null && this.mineDisplay) {
+                if (mineId !== null) {
+                    console.log('Mine deployed successfully:', mineId);
                     this.mineDisplay.updateCount(this.mineSystem.currentMines, this.mineSystem.maxMines);
+                } else {
+                    console.log('Failed to deploy mine - no mines available');
                 }
                 
                 this.inputState.deployMine = false;
@@ -290,19 +309,6 @@ export class Game {
             // Update mine display
             if (this.mineDisplay && this.mineSystem) {
                 this.mineDisplay.updateCount(this.mineSystem.currentMines, this.mineSystem.maxMines);
-            }
-
-            // Check mine collisions
-            if (this.playerVehicle?.vehicle) {
-                const vehiclePos = this.playerVehicle.vehicle.chassisBody.position;
-                for (const [mineId, mine] of this.mineSystem.mines.entries()) {
-                    if (mine.active && mine.body.position.distanceTo(vehiclePos) < 2.0) {
-                        this.mineSystem.explodeMine(mineId);
-                        if (this.playerVehicle.damageSystem) {
-                            this.playerVehicle.damageSystem.applyDamage(50, mine.body.position);
-                        }
-                    }
-                }
             }
         }
 
@@ -316,6 +322,7 @@ export class Game {
     }
 
     handleInput(deltaTime) {
+        // Early return if no player vehicle or physics vehicle
         if (!this.playerVehicle || !this.playerVehicle._vehicle) {
             return;
         }
@@ -360,7 +367,9 @@ export class Game {
         }
 
         // Update brake lights
-        this.playerVehicle.setBraking(brakeKey);
+        if (this.playerVehicle.setBraking) {
+            this.playerVehicle.setBraking(brakeKey);
+        }
 
         // Steering
         if (leftKey) {
@@ -398,6 +407,40 @@ export class Game {
         // Handle rear view
         if (this.cameraManager.controller) {
             this.cameraManager.controller.setRearView(rearViewKey);
+        }
+
+        // Handle mine deployment
+        if (this.inputState.deployMine && this.playerVehicle && this.mineSystem) {
+            // Get position slightly behind the vehicle
+            const vehiclePosition = vehicle.chassisBody.position;
+            const vehicleQuaternion = vehicle.chassisBody.quaternion;
+            
+            // Calculate position behind vehicle
+            const backward = new THREE.Vector3(0, 0, 1);
+            backward.applyQuaternion(new THREE.Quaternion(
+                vehicleQuaternion.x,
+                vehicleQuaternion.y,
+                vehicleQuaternion.z,
+                vehicleQuaternion.w
+            ));
+            
+            const minePosition = new CANNON.Vec3(
+                vehiclePosition.x - backward.x * 2,
+                vehiclePosition.y - 0.5, // Slightly below vehicle
+                vehiclePosition.z - backward.z * 2
+            );
+
+            const mineId = this.mineSystem.createMine(
+                minePosition,
+                {},
+                vehicle.chassisBody.vehicleId
+            );
+            
+            if (mineId !== null) {
+                this.mineDisplay.updateCount(this.mineSystem.currentMines, this.mineSystem.maxMines);
+            }
+            
+            this.inputState.deployMine = false;
         }
     }
 
@@ -440,6 +483,23 @@ export class Game {
         window.addEventListener('keyup', this.handleKeyUp);
         window.addEventListener('mousedown', this.handleMouseDown);
         window.addEventListener('mouseup', this.handleMouseUp);
+
+        // Add mine explosion event listener
+        window.addEventListener('mineExplosion', (event) => {
+            const { vehicleId, damage, minePosition } = event.detail;
+            console.log('Mine explosion event received:', { vehicleId, damage, minePosition });
+            
+            // Find the vehicle that hit the mine
+            if (this.playerVehicle && this.playerVehicle._vehicle.chassisBody.vehicleId === vehicleId) {
+                // Apply damage to player vehicle
+                if (this.playerVehicle.damageSystem) {
+                    console.log('Applying mine damage to vehicle:', damage);
+                    this.playerVehicle.damageSystem.applyDamage(damage, minePosition);
+                } else {
+                    console.warn('Vehicle has no damage system to apply mine damage');
+                }
+            }
+        });
     }
 
     _respawnVehicle() {
@@ -685,6 +745,7 @@ export class Game {
         // Right click for mine deployment
         if (event.button === 2) {
             event.preventDefault();
+            console.log('Right click detected for mine deployment');
             this.inputState.deployMine = true;
         }
     }

@@ -66,6 +66,7 @@ export class PowerUpDisplay {
         // Create power-up display element
         const element = document.createElement('div');
         element.className = 'power-up-item';
+        element.dataset.type = type;
 
         // Create icon
         const icon = document.createElement('div');
@@ -133,9 +134,10 @@ export class PowerUpDisplay {
             speed: '#2196F3',
             weapon: '#F44336',
             shield: '#9C27B0',
-            ammo: '#FF9800'
+            ammo: '#FF9800',
+            overcharge: '#FF00FF'
         };
-        return colors[type] || '#757575';
+        return colors[type] || '#FFFFFF';
     }
 
     getPowerUpIcon(type) {
@@ -144,29 +146,22 @@ export class PowerUpDisplay {
             speed: '⚡',
             weapon: '🎯',
             shield: '🛡️',
-            ammo: '🔫'
+            ammo: '🔫',
+            overcharge: '💥'
         };
         return icons[type] || '✨';
     }
 
     getPowerUpLabel(type) {
         const labels = {
-            health: 'Health Boost',
+            health: 'Health',
             speed: 'Speed Boost',
-            weapon: 'Weapon Boost',
+            weapon: 'Weapon Overcharge',
             shield: 'Shield',
-            ammo: 'Ammo Boost'
+            ammo: 'Ammo',
+            overcharge: 'Overcharge'
         };
-        return labels[type] || 'Power Up';
-    }
-
-    clear() {
-        // Clear all active power-ups
-        for (const [type, info] of this.activePowerUps) {
-            clearInterval(info.updateInterval);
-            info.element.remove();
-        }
-        this.activePowerUps.clear();
+        return labels[type] || type;
     }
 
     update(deltaTime) {
@@ -183,5 +178,15 @@ export class PowerUpDisplay {
                 this.removePowerUp(type);
             }
         }
+    }
+
+    cleanup() {
+        // Clear all intervals
+        for (const [type, info] of this.activePowerUps) {
+            clearInterval(info.updateInterval);
+            info.element.remove();
+        }
+        this.activePowerUps.clear();
+        this.container.remove();
     }
 } 

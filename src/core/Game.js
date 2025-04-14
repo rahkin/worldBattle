@@ -77,7 +77,9 @@ export class Game {
         // Initialize input state
         this.inputState = {
             lookingBack: false,
-            deployMine: false
+            deployMine: false,
+            lastMineDeployTime: 0,
+            mineDeployCooldown: 1000 // 1 second cooldown between mine deployments
         };
 
         // Bind additional input handlers
@@ -279,86 +281,6 @@ export class Game {
         // Update mine system
         if (this.mineSystem) {
             this.mineSystem.update(deltaTime);
-            
-            // Handle mine deployment
-            if (this.inputState.deployMine && this.playerVehicle && this.mineSystem) {
-                // Only deploy if looking back
-                if (!this.inputState.lookingBack) {
-                    console.log('Cannot deploy mine: not looking back');
-                    return;
-                }
-                
-                console.log('Attempting to deploy mine');
-                
-                // Get vehicle position and orientation
-                const vehiclePosition = this.playerVehicle._vehicle.chassisBody.position;
-                const vehicleQuaternion = this.playerVehicle._vehicle.chassisBody.quaternion;
-                
-                // Calculate backward direction vector
-                const backward = new THREE.Vector3(0, 0, 1);
-                backward.applyQuaternion(new THREE.Quaternion(
-                    vehicleQuaternion.x,
-                    vehicleQuaternion.y,
-                    vehicleQuaternion.z,
-                    vehicleQuaternion.w
-                ));
-
-                // Get vehicle height - use bounding box if available, otherwise use default
-                let vehicleHeight = 2; // Default height
-                if (this.playerVehicle.chassisMesh) {
-                    // Force bounding box update
-                    this.playerVehicle.chassisMesh.updateMatrixWorld(true);
-                    const boundingBox = new THREE.Box3().setFromObject(this.playerVehicle.chassisMesh);
-                    vehicleHeight = boundingBox.max.y - boundingBox.min.y;
-                }
-                
-                // Calculate mine position:
-                // - 2 units behind vehicle (using correct backward direction)
-                // - Above the vehicle's top (vehicle position + half height + extra clearance)
-                // - Apply a small downward velocity when deploying
-                const deployHeight = vehiclePosition.y + (vehicleHeight / 2) + 1;
-                const minePosition = new CANNON.Vec3(
-                    vehiclePosition.x - backward.x * 2, // Changed from + to - to match backward direction
-                    deployHeight,
-                    vehiclePosition.z - backward.z * 2  // Changed from + to - to match backward direction
-                );
-
-                console.log('Creating mine at position:', {
-                    x: minePosition.x,
-                    y: minePosition.y,
-                    z: minePosition.z,
-                    vehicleY: vehiclePosition.y,
-                    deployHeight: deployHeight,
-                    vehicleHeight: vehicleHeight
-                });
-
-                const mineId = this.mineSystem.createMine(
-                    minePosition,
-                    {
-                        initialVelocity: new CANNON.Vec3(
-                            -backward.x * 2, // Add backward momentum
-                            -3,             // Stronger downward velocity
-                            -backward.z * 2
-                        ),
-                        deployHeight: deployHeight
-                    },
-                    this.playerVehicle._vehicle.chassisBody.vehicleId
-                );
-                
-                if (mineId !== null) {
-                    console.log('Mine deployed successfully:', mineId);
-                    this.mineDisplay.updateCount(this.mineSystem.currentMines, this.mineSystem.maxMines);
-                } else {
-                    console.log('Failed to deploy mine - no mines available');
-                }
-                
-                this.inputState.deployMine = false;
-            }
-
-            // Update mine display
-            if (this.mineDisplay && this.mineSystem) {
-                this.mineDisplay.updateCount(this.mineSystem.currentMines, this.mineSystem.maxMines);
-            }
         }
 
         // Update test target
@@ -584,17 +506,12 @@ export class Game {
         // Handle weapon firing first
         if (this.inputManager.isMouseButtonPressed(0)) { // Left mouse button
             if (this.playerVehicle.fireCannon) {
-                console.log('Attempting to fire cannon');  // Debug log
                 this.playerVehicle.fireCannon();
             }
         }
 
         // Handle recovery key (T)
         if (this.inputManager.isKeyPressed('KeyT')) {
-            console.log('Recovery key pressed, checking status:', {
-                canRecover: this.playerVehicle.canRecover,
-                cooldown: this.playerVehicle.recoveryCooldown
-            });
             this._handleRecovery();
         }
 
@@ -618,7 +535,67 @@ export class Game {
             this.playerVehicle.setBraking(brakeKey);
         }
 
-        // Steering
+        // Handle mine deployment with cooldown
+        if (this.inputState.deployMine && this.playerVehicle && this.mineSystem) {
+            const currentTime = Date.now();
+            if (currentTime - this.inputState.lastMineDeployTime >= this.inputState.mineDeployCooldown) {
+                if (this.inputState.lookingBack) {
+                    // Get vehicle position and orientation
+                    const vehiclePosition = this.playerVehicle._vehicle.chassisBody.position;
+                    const vehicleQuaternion = this.playerVehicle._vehicle.chassisBody.quaternion;
+                    
+                    // Calculate backward direction vector
+                    const backward = new THREE.Vector3(0, 0, 1);
+                    backward.applyQuaternion(new THREE.Quaternion(
+                        vehicleQuaternion.x,
+                        vehicleQuaternion.y,
+                        vehicleQuaternion.z,
+                        vehicleQuaternion.w
+                    ));
+
+                    // Get vehicle height
+                    let vehicleHeight = 2;
+                    if (this.playerVehicle.chassisMesh) {
+                        this.playerVehicle.chassisMesh.updateMatrixWorld(true);
+                        const boundingBox = new THREE.Box3().setFromObject(this.playerVehicle.chassisMesh);
+                        vehicleHeight = boundingBox.max.y - boundingBox.min.y;
+                    }
+                    
+                    const deployHeight = vehiclePosition.y + (vehicleHeight / 2) + 1;
+                    const deployPosition = new CANNON.Vec3(
+                        vehiclePosition.x - backward.x * 2,
+                        deployHeight,
+                        vehiclePosition.z - backward.z * 2
+                    );
+
+                    // Deploy mine with slight downward velocity
+                    const deployVelocity = new CANNON.Vec3(0, -2, 0);
+                    this.mineSystem.createMine(deployPosition, { initialVelocity: deployVelocity });
+                    
+                    // Update last deploy time
+                    this.inputState.lastMineDeployTime = currentTime;
+                }
+            }
+        }
+
+        // Handle movement regardless of mine deployment
+        if (forwardKey) {
+            for (let i = 0; i < vehicle.wheelInfos.length; i++) {
+                vehicle.applyEngineForce(boostKey ? boostForce : normalForce, i);
+            }
+        } else if (backwardKey) {
+            for (let i = 0; i < vehicle.wheelInfos.length; i++) {
+                vehicle.applyEngineForce(-reverseForce, i);
+            }
+        }
+
+        if (brakeKey) {
+            for (let i = 0; i < vehicle.wheelInfos.length; i++) {
+                vehicle.setBrake(brakeForce, i);
+            }
+        }
+
+        // Handle steering
         if (leftKey) {
             vehicle.setSteeringValue(maxSteerVal, 0);
             vehicle.setSteeringValue(maxSteerVal, 1);
@@ -630,105 +607,23 @@ export class Game {
             vehicle.setSteeringValue(0, 1);
         }
 
-        // Forward/Reverse
-        if (forwardKey) {
-            vehicle.applyEngineForce(normalForce, 2);
-            vehicle.applyEngineForce(normalForce, 3);
-        } else if (backwardKey) {
-            vehicle.applyEngineForce(-reverseForce, 2);
-            vehicle.applyEngineForce(-reverseForce, 3);
-        }
-
-        // Braking
-        if (brakeKey) {
-            for (let i = 0; i < vehicle.wheelInfos.length; i++) {
-                vehicle.setBrake(brakeForce, i);
-            }
-        }
-
-        // Handle boost
-        if (boostKey && this.playerVehicle.boost) {
-            this.playerVehicle.boost();
-        }
-
         // Handle rear view
-        if (this.cameraManager.controller) {
-            this.cameraManager.controller.setRearView(rearViewKey);
-        }
-
-        // Handle mine deployment
-        if (this.inputState.deployMine && this.playerVehicle && this.mineSystem) {
-            // Only deploy if looking back
-            if (!this.inputState.lookingBack) {
-                console.log('Cannot deploy mine: not looking back');
-                return;
+        if (rearViewKey) {
+            this.inputState.lookingBack = true;
+            if (this.playerVehicle) {
+                this.playerVehicle.setLookingBack(true);
             }
-            
-            console.log('Attempting to deploy mine');
-            
-            // Get vehicle position and orientation
-            const vehiclePosition = this.playerVehicle._vehicle.chassisBody.position;
-            const vehicleQuaternion = this.playerVehicle._vehicle.chassisBody.quaternion;
-            
-            // Calculate backward direction vector
-            const backward = new THREE.Vector3(0, 0, 1);
-            backward.applyQuaternion(new THREE.Quaternion(
-                vehicleQuaternion.x,
-                vehicleQuaternion.y,
-                vehicleQuaternion.z,
-                vehicleQuaternion.w
-            ));
-
-            // Get vehicle height - use bounding box if available, otherwise use default
-            let vehicleHeight = 2; // Default height
-            if (this.playerVehicle.chassisMesh) {
-                // Force bounding box update
-                this.playerVehicle.chassisMesh.updateMatrixWorld(true);
-                const boundingBox = new THREE.Box3().setFromObject(this.playerVehicle.chassisMesh);
-                vehicleHeight = boundingBox.max.y - boundingBox.min.y;
+            if (this.cameraManager && this.cameraManager.controller) {
+                this.cameraManager.controller.setRearView(true);
             }
-            
-            // Calculate mine position:
-            // - 2 units behind vehicle (using correct backward direction)
-            // - Above the vehicle's top (vehicle position + half height + extra clearance)
-            // - Apply a small downward velocity when deploying
-            const deployHeight = vehiclePosition.y + (vehicleHeight / 2) + 1;
-            const minePosition = new CANNON.Vec3(
-                vehiclePosition.x - backward.x * 2, // Changed from + to - to match backward direction
-                deployHeight,
-                vehiclePosition.z - backward.z * 2  // Changed from + to - to match backward direction
-            );
-
-            console.log('Creating mine at position:', {
-                x: minePosition.x,
-                y: minePosition.y,
-                z: minePosition.z,
-                vehicleY: vehiclePosition.y,
-                deployHeight: deployHeight,
-                vehicleHeight: vehicleHeight
-            });
-
-            const mineId = this.mineSystem.createMine(
-                minePosition,
-                {
-                    initialVelocity: new CANNON.Vec3(
-                        -backward.x * 2, // Add backward momentum
-                        -3,             // Stronger downward velocity
-                        -backward.z * 2
-                    ),
-                    deployHeight: deployHeight
-                },
-                this.playerVehicle._vehicle.chassisBody.vehicleId
-            );
-            
-            if (mineId !== null) {
-                console.log('Mine deployed successfully:', mineId);
-                this.mineDisplay.updateCount(this.mineSystem.currentMines, this.mineSystem.maxMines);
-            } else {
-                console.log('Failed to deploy mine - no mines available');
+        } else if (this.inputState.lookingBack) {
+            this.inputState.lookingBack = false;
+            if (this.playerVehicle) {
+                this.playerVehicle.setLookingBack(false);
             }
-            
-            this.inputState.deployMine = false;
+            if (this.cameraManager && this.cameraManager.controller) {
+                this.cameraManager.controller.setRearView(false);
+            }
         }
     }
 
@@ -986,20 +881,21 @@ export class Game {
             if (this.playerVehicle) {
                 this.playerVehicle.setLookingBack(false);
             }
+            if (this.cameraManager && this.cameraManager.controller) {
+                this.cameraManager.controller.setRearView(false);
+            }
         }
     }
 
     handleMouseDown(event) {
-        // Right click for mine deployment
-        if (event.button === 2) {
+        if (event.button === 2) { // Right mouse button
             event.preventDefault();
-            console.log('Right click detected for mine deployment');
             this.inputState.deployMine = true;
         }
     }
 
     handleMouseUp(event) {
-        if (event.button === 2) {
+        if (event.button === 2) { // Right mouse button
             this.inputState.deployMine = false;
         }
     }

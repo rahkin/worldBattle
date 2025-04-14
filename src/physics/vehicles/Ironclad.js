@@ -211,49 +211,88 @@ export class Ironclad extends BaseCar {
 
         this.chassisMesh = new THREE.Group();
 
-        // Materials
-        const armorMaterial = new THREE.MeshPhongMaterial({
+        // Main body
+        const mainBodyGeo = new THREE.BoxGeometry(this.options.width * 2, this.options.height * 2, this.options.length * 2);
+        const armorMaterial = new THREE.MeshPhongMaterial({ 
             color: this.options.color,
-            metalness: 0.9,
-            roughness: 0.4,
-            flatShading: true
+            roughness: 0.8,
+            metalness: 0.6 
         });
-
-        const darkMetal = new THREE.MeshPhongMaterial({
-            color: 0x1a1a1a,
-            metalness: 0.8,
-            roughness: 0.5
-        });
-
-        // Main armored body
-        const mainBodyGeo = VehicleGeometryFactory.createSmoothChassis(
-            this.options.width * 2,
-            this.options.height * 2,
-            this.options.length * 2,
-            0.15  // Sharp edges for armored look
-        );
         const mainBody = new THREE.Mesh(mainBodyGeo, armorMaterial);
         this.chassisMesh.add(mainBody);
 
-        // Add reinforced corners
-        const cornerSize = { x: 0.2, y: 0.2, z: 0.2 };
-        const cornerPositions = [
-            { x: -this.options.width, y: 0, z: -this.options.length },
-            { x: this.options.width, y: 0, z: -this.options.length },
-            { x: -this.options.width, y: 0, z: this.options.length },
-            { x: this.options.width, y: 0, z: this.options.length }
-        ];
-
-        cornerPositions.forEach(pos => {
-            const corner = new THREE.Mesh(
-                new THREE.BoxGeometry(cornerSize.x, cornerSize.y, cornerSize.z),
-                darkMetal
-            );
-            corner.position.set(pos.x, pos.y, pos.z);
-            this.chassisMesh.add(corner);
+        // Add heavily armored rear lights
+        const lightStripGeo = new THREE.BoxGeometry(this.options.width * 0.8, 0.5, 0.05);
+        const lightMaterial = new THREE.MeshPhongMaterial({
+            color: 0xff0000,
+            emissive: 0xff0000,
+            emissiveIntensity: 4.0,
+            transparent: true,
+            opacity: 1.0
         });
 
+        // Create three light strips on each side for a more industrial look
+        const lightPositions = [-1, 0, 1];
+        lightPositions.forEach(xOffset => {
+            // Left side lights
+            const leftLight = new THREE.Mesh(lightStripGeo, lightMaterial);
+            leftLight.position.set(
+                -this.options.width * 0.4 + (xOffset * 0.2),
+                this.options.height * 0.3,
+                this.options.length - 0.001
+            );
+            this.chassisMesh.add(leftLight);
+
+            // Right side lights
+            const rightLight = new THREE.Mesh(lightStripGeo, lightMaterial);
+            rightLight.position.set(
+                this.options.width * 0.4 + (xOffset * 0.2),
+                this.options.height * 0.3,
+                this.options.length - 0.001
+            );
+            this.chassisMesh.add(rightLight);
+        });
+
+        // Add enhanced glow effects behind the armor
+        const glowGeo = new THREE.PlaneGeometry(this.options.width * 0.4, 0.6);
+        const glowMaterial = new THREE.MeshBasicMaterial({
+            color: 0xff0000,
+            transparent: true,
+            opacity: 0.8,
+            blending: THREE.AdditiveBlending
+        });
+
+        // Left side glow
+        const leftGlow = new THREE.Mesh(glowGeo, glowMaterial);
+        leftGlow.position.set(-this.options.width * 0.4, this.options.height * 0.3, this.options.length + 0.01);
+        leftGlow.rotation.y = Math.PI;
+        this.chassisMesh.add(leftGlow);
+
+        // Right side glow
+        const rightGlow = new THREE.Mesh(glowGeo, glowMaterial);
+        rightGlow.position.set(this.options.width * 0.4, this.options.height * 0.3, this.options.length + 0.01);
+        rightGlow.rotation.y = Math.PI;
+        this.chassisMesh.add(rightGlow);
+
+        // Add second layer of glow for more intensity
+        const leftGlow2 = new THREE.Mesh(glowGeo.clone(), glowMaterial.clone());
+        leftGlow2.material.opacity = 0.5;
+        leftGlow2.position.set(-this.options.width * 0.4, this.options.height * 0.3, this.options.length + 0.02);
+        leftGlow2.rotation.y = Math.PI;
+        leftGlow2.scale.set(1.4, 1.4, 1.4);
+        this.chassisMesh.add(leftGlow2);
+
+        const rightGlow2 = new THREE.Mesh(glowGeo.clone(), glowMaterial.clone());
+        rightGlow2.material.opacity = 0.5;
+        rightGlow2.position.set(this.options.width * 0.4, this.options.height * 0.3, this.options.length + 0.02);
+        rightGlow2.rotation.y = Math.PI;
+        rightGlow2.scale.set(1.4, 1.4, 1.4);
+        this.chassisMesh.add(rightGlow2);
+
         this.scene.add(this.chassisMesh);
+        
+        // Create the fixed gun after adding the chassis
+        this._createFixedGun();
     }
 
     _addArmorPlating() {

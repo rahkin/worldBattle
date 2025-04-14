@@ -27,6 +27,15 @@
     - Disabled tone mapping for accurate brightness
     - Enhanced depth handling for consistent rendering
     - Improved performance with optimized settings
+- Enhanced vehicle lighting system:
+  - Standardized rear light implementation across all vehicle types
+  - Improved light positioning and sizing for better visibility
+  - Added consistent glow effects with two-layer system
+  - Removed unnecessary light housings for cleaner aesthetic
+  - Increased emissive intensity to 4.0 for better visibility
+  - Adjusted light strip widths to 0.8 of vehicle width
+  - Centered light positions at 0.4 width offset
+  - Added second layer of glow with 1.4x scale for enhanced effect
 
 ### 2025-04-15
 - Completed comprehensive Day/Night system:

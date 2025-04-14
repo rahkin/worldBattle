@@ -84,40 +84,78 @@ export class Tank extends BaseCar {
             this.scene.remove(this.chassisMesh);
         }
 
+        // Create a group for all chassis parts
         this.chassisMesh = new THREE.Group();
 
-        // Materials
-        const tankMaterial = new THREE.MeshPhongMaterial({
+        // Main body
+        const mainBodyGeo = new THREE.BoxGeometry(this.options.width * 2, this.options.height * 2, this.options.length * 2);
+        const tankMaterial = new THREE.MeshPhongMaterial({ 
             color: this.options.color,
-            metalness: 0.7,
-            roughness: 0.5
+            roughness: 0.7,
+            metalness: 0.3
+        });
+        const mainBody = new THREE.Mesh(mainBodyGeo, tankMaterial);
+        this.chassisMesh.add(mainBody);
+
+        // Add enhanced rear lights - military style
+        const lightStripGeo = new THREE.BoxGeometry(this.options.width * 0.8, 0.4, 0.05);
+        const lightMaterial = new THREE.MeshPhongMaterial({
+            color: 0xff0000,
+            emissive: 0xff0000,
+            emissiveIntensity: 3.0,
+            transparent: true,
+            opacity: 1.0
         });
 
-        const darkMetal = new THREE.MeshPhongMaterial({
-            color: 0x2a2a2a,
-            metalness: 0.8,
-            roughness: 0.4
+        // Create two separate light strips for a more military look
+        const leftLight = new THREE.Mesh(lightStripGeo, lightMaterial);
+        leftLight.position.set(-this.options.width * 0.4, this.options.height * 0.3, this.options.length - 0.001);
+        leftLight.scale.set(0.4, 1, 1);
+        this.chassisMesh.add(leftLight);
+
+        const rightLight = new THREE.Mesh(lightStripGeo, lightMaterial);
+        rightLight.position.set(this.options.width * 0.4, this.options.height * 0.3, this.options.length - 0.001);
+        rightLight.scale.set(0.4, 1, 1);
+        this.chassisMesh.add(rightLight);
+
+        // Add enhanced glow effects
+        const glowGeo = new THREE.PlaneGeometry(this.options.width * 0.4, 0.5);
+        const glowMaterial = new THREE.MeshBasicMaterial({
+            color: 0xff0000,
+            transparent: true,
+            opacity: 0.8,
+            blending: THREE.AdditiveBlending
         });
 
-        // Main hull - sleeker design
-        const hullGeo = VehicleGeometryFactory.createSmoothChassis(
-            this.options.width * 2,
-            this.options.height * 2,
-            this.options.length * 2,
-            0.1  // Sharper edges
-        );
-        const hull = new THREE.Mesh(hullGeo, tankMaterial);
-        hull.position.y = -0.1;  // Slightly lower
-        this.chassisMesh.add(hull);
+        const leftGlow = new THREE.Mesh(glowGeo, glowMaterial);
+        leftGlow.position.set(-this.options.width * 0.4, this.options.height * 0.3, this.options.length + 0.01);
+        leftGlow.rotation.y = Math.PI;
+        this.chassisMesh.add(leftGlow);
 
-        // Sloped front armor
-        const frontArmorGeo = new THREE.BoxGeometry(this.options.width * 1.8, this.options.height * 0.8, 0.3);
-        const frontArmor = new THREE.Mesh(frontArmorGeo, darkMetal);
-        frontArmor.position.set(0, this.options.height * 0.2, -this.options.length * 0.8);
-        frontArmor.rotation.x = Math.PI * 0.15;  // Angled for deflection
-        this.chassisMesh.add(frontArmor);
+        const rightGlow = new THREE.Mesh(glowGeo, glowMaterial);
+        rightGlow.position.set(this.options.width * 0.4, this.options.height * 0.3, this.options.length + 0.01);
+        rightGlow.rotation.y = Math.PI;
+        this.chassisMesh.add(rightGlow);
+
+        // Add second layer of glow for more intensity
+        const leftGlow2 = new THREE.Mesh(glowGeo.clone(), glowMaterial.clone());
+        leftGlow2.material.opacity = 0.5;
+        leftGlow2.position.set(-this.options.width * 0.4, this.options.height * 0.3, this.options.length + 0.02);
+        leftGlow2.rotation.y = Math.PI;
+        leftGlow2.scale.set(1.3, 1.3, 1.3);
+        this.chassisMesh.add(leftGlow2);
+
+        const rightGlow2 = new THREE.Mesh(glowGeo.clone(), glowMaterial.clone());
+        rightGlow2.material.opacity = 0.5;
+        rightGlow2.position.set(this.options.width * 0.4, this.options.height * 0.3, this.options.length + 0.02);
+        rightGlow2.rotation.y = Math.PI;
+        rightGlow2.scale.set(1.3, 1.3, 1.3);
+        this.chassisMesh.add(rightGlow2);
 
         this.scene.add(this.chassisMesh);
+        
+        // Create the turret after adding the chassis
+        this._createTurret();
     }
 
     _addTankFeatures() {

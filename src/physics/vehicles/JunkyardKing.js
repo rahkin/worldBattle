@@ -73,51 +73,78 @@ export class JunkyardKing extends BaseCar {
 
         this.chassisMesh = new THREE.Group();
 
-        // Materials
-        const rustyMaterial = new THREE.MeshPhongMaterial({
+        // Main body
+        const mainBodyGeo = new THREE.BoxGeometry(this.options.width * 2, this.options.height * 2, this.options.length * 2);
+        const scrapMaterial = new THREE.MeshPhongMaterial({ 
             color: this.options.color,
-            metalness: 0.6,
-            roughness: 0.8,
-            flatShading: true
+            roughness: 0.9,
+            metalness: 0.3
         });
-
-        const metalMaterial = new THREE.MeshPhongMaterial({
-            color: 0x505050,
-            metalness: 0.7,
-            roughness: 0.6,
-            flatShading: true
-        });
-
-        // Main body - rough and angular
-        const mainBodyGeo = VehicleGeometryFactory.createSmoothChassis(
-            this.options.width * 2,
-            this.options.height * 2,
-            this.options.length * 2,
-            0.2
-        );
-        const mainBody = new THREE.Mesh(mainBodyGeo, rustyMaterial);
+        const mainBody = new THREE.Mesh(mainBodyGeo, scrapMaterial);
         this.chassisMesh.add(mainBody);
 
-        // Add random dents and plates
-        for (let i = 0; i < 6; i++) {
-            const plateGeo = new THREE.BoxGeometry(
-                0.3 + Math.random() * 0.3,
-                0.2 + Math.random() * 0.2,
-                0.05
-            );
-            const plate = new THREE.Mesh(plateGeo, metalMaterial);
-            plate.position.set(
-                (Math.random() - 0.5) * this.options.width,
-                (Math.random() - 0.5) * this.options.height,
-                (Math.random() - 0.5) * this.options.length * 1.8
-            );
-            plate.rotation.set(
-                Math.random() * 0.3,
-                Math.random() * Math.PI * 2,
-                Math.random() * 0.3
-            );
-            this.chassisMesh.add(plate);
-        }
+        // Add asymmetric, scrappy-looking rear lights
+        const lightStripGeo = new THREE.BoxGeometry(this.options.width * 0.8, 0.5, 0.05);
+        const lightMaterial = new THREE.MeshPhongMaterial({
+            color: 0xff0000,
+            emissive: 0xff0000,
+            emissiveIntensity: 4.0,
+            transparent: true,
+            opacity: 1.0
+        });
+
+        // Create irregular light segments
+        const leftLight = new THREE.Mesh(lightStripGeo, lightMaterial);
+        leftLight.position.set(
+            -this.options.width * 0.4,
+            this.options.height * 0.3,
+            this.options.length - 0.001
+        );
+        this.chassisMesh.add(leftLight);
+
+        const rightLight = new THREE.Mesh(lightStripGeo, lightMaterial);
+        rightLight.position.set(
+            this.options.width * 0.4,
+            this.options.height * 0.3,
+            this.options.length - 0.001
+        );
+        this.chassisMesh.add(rightLight);
+
+        // Add enhanced glow effects
+        const glowGeo = new THREE.PlaneGeometry(this.options.width * 0.4, 0.6);
+        const glowMaterial = new THREE.MeshBasicMaterial({
+            color: 0xff0000,
+            transparent: true,
+            opacity: 0.8,
+            blending: THREE.AdditiveBlending
+        });
+
+        // Left side glow
+        const leftGlow = new THREE.Mesh(glowGeo, glowMaterial);
+        leftGlow.position.set(-this.options.width * 0.4, this.options.height * 0.3, this.options.length + 0.01);
+        leftGlow.rotation.y = Math.PI;
+        this.chassisMesh.add(leftGlow);
+
+        // Right side glow
+        const rightGlow = new THREE.Mesh(glowGeo, glowMaterial);
+        rightGlow.position.set(this.options.width * 0.4, this.options.height * 0.3, this.options.length + 0.01);
+        rightGlow.rotation.y = Math.PI;
+        this.chassisMesh.add(rightGlow);
+
+        // Add second layer of glow for more intensity
+        const leftGlow2 = new THREE.Mesh(glowGeo.clone(), glowMaterial.clone());
+        leftGlow2.material.opacity = 0.5;
+        leftGlow2.position.set(-this.options.width * 0.4, this.options.height * 0.3, this.options.length + 0.02);
+        leftGlow2.rotation.y = Math.PI;
+        leftGlow2.scale.set(1.4, 1.4, 1.4);
+        this.chassisMesh.add(leftGlow2);
+
+        const rightGlow2 = new THREE.Mesh(glowGeo.clone(), glowMaterial.clone());
+        rightGlow2.material.opacity = 0.5;
+        rightGlow2.position.set(this.options.width * 0.4, this.options.height * 0.3, this.options.length + 0.02);
+        rightGlow2.rotation.y = Math.PI;
+        rightGlow2.scale.set(1.4, 1.4, 1.4);
+        this.chassisMesh.add(rightGlow2);
 
         this.scene.add(this.chassisMesh);
     }

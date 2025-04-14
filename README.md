@@ -303,6 +303,18 @@ worldBattle/
 - Improved explosion effects and particle systems
 - Added vehicle cleanup during respawn
 - Fixed projectile system integration
+- Enhanced rear lights for all vehicles:
+  - Tank: Military-style dual light strips with enhanced glow effects
+  - Ironclad: Triple light strips with heavy armored housing
+  - Junkyard King: Asymmetric light assemblies with rusty frames
+  - Muscle Car: Custom rear lights with larger light strip
+  - Scorpion: Enhanced wheel visibility with custom light positioning
+  - Drone: Unique lighting features with energy core and hover engine glow
+- Improved vehicle visual effects:
+  - Enhanced glow effects for all vehicles
+  - Consistent light positioning and sizing
+  - Increased emissive intensity for better visibility
+  - Removed unnecessary light housings for cleaner look
 
 ### Getting Started
 

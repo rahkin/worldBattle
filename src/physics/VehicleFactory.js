@@ -18,31 +18,33 @@ export class VehicleFactory {
 
     createVehicle(type, options = {}) {
         let vehicle;
+        const vehicleOptions = { ...options, type: type.toLowerCase() };
+        
         switch(type.toLowerCase()) {
             case 'muscle':
-                vehicle = new MuscleCar(this.world, this.scene, this.game);
+                vehicle = new MuscleCar(this.world, this.scene, this.game, vehicleOptions);
                 break;
             case 'ironclad':
-                vehicle = new Ironclad(this.world, this.scene, this.game);
+                vehicle = new Ironclad(this.world, this.scene, this.game, vehicleOptions);
                 break;
             case 'scorpion':
-                vehicle = new Scorpion(this.world, this.scene, this.game);
+                vehicle = new Scorpion(this.world, this.scene, this.game, vehicleOptions);
                 break;
             case 'junkyard':
-                vehicle = new JunkyardKing(this.world, this.scene, this.game);
+                vehicle = new JunkyardKing(this.world, this.scene, this.game, vehicleOptions);
                 break;
             case 'tank':
-                vehicle = new Tank(this.world, this.scene, this.game);
+                vehicle = new Tank(this.world, this.scene, this.game, vehicleOptions);
                 break;
             case 'drone':
-                vehicle = new Drone(this.world, this.scene, this.game);
+                vehicle = new Drone(this.world, this.scene, this.game, vehicleOptions);
                 break;
             case 'base':
-                vehicle = new BaseCar(this.world, this.scene, options);
+                vehicle = new BaseCar(this.world, this.scene, vehicleOptions);
                 break;
             default:
                 console.warn(`Vehicle type '${type}' not found, creating base car`);
-                vehicle = new BaseCar(this.world, this.scene, options);
+                vehicle = new BaseCar(this.world, this.scene, vehicleOptions);
         }
         this.vehicles.add(vehicle);
         return vehicle;

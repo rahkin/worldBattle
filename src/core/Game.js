@@ -18,6 +18,7 @@ import { MineSystem } from '../physics/MineSystem.js';
 import { MineDisplay } from '../ui/MineDisplay.js';
 import { TimeSystem } from './TimeSystem.js';
 import { WeatherSystem } from './WeatherSystem.js';
+import { CollisionSystem, COLLISION_GROUPS, COLLISION_MASKS } from '../physics/CollisionSystem.js';
 
 export class Game {
     constructor() {
@@ -65,9 +66,10 @@ export class Game {
             timer: this.powerUpSpawnTimer
         });
         
-        // Initialize power-up system as null
-        this.powerUpSystem = null;
-
+        // Initialize power-up system
+        this.powerUpSystem = new PowerUpSystem(this.physicsWorld.world, this.sceneManager.scene, this.powerUpDisplay);
+        this.powerUpSystem.game = this; // Set the game instance
+        
         // Initialize mine system
         this.mineSystem = new MineSystem(this.physicsWorld.world, this.sceneManager.scene);
         console.log('Mine system initialized');
@@ -95,6 +97,18 @@ export class Game {
 
         // Initialize weather system
         this.weatherSystem = new WeatherSystem(this.sceneManager.scene, this.timeSystem);
+
+        // Initialize collision system
+        this.collisionSystem = new CollisionSystem(this.physicsWorld.world);
+        
+        // Register collision handlers
+        this.collisionSystem.registerHandler('vehicle-powerup', this.handlePowerUpCollision.bind(this));
+        this.collisionSystem.registerHandler('vehicle-mine', this.handleMineCollision.bind(this));
+
+        // Add collision event listener for mines
+        this.physicsWorld.world.addEventListener('beginContact', (event) => {
+            this.mineSystem.handleCollision(event);
+        });
     }
 
     async init() {
@@ -125,7 +139,6 @@ export class Game {
             // Initialize gameplay systems
             console.log('Initializing gameplay systems...');
             this.vehicleFactory = new VehicleFactory(this.physicsWorld.world, this.sceneManager.scene, this);
-            this.mineSystem = new MineSystem(this.physicsWorld.world, this.sceneManager.scene);
             this.powerUpSystem = new PowerUpSystem(this.physicsWorld.world, this.sceneManager.scene, this.powerUpDisplay);
             this.powerUpSystem.game = this;
 
@@ -156,6 +169,9 @@ export class Game {
             // Start game loop
             console.log('Starting game loop...');
             this.gameLoop.start(this.update.bind(this));
+
+            // Start collision system
+            this.collisionSystem.start();
 
             // Hide loading screen
             console.log('Initialization complete, hiding loading screen...');
@@ -263,11 +279,12 @@ export class Game {
             // Handle mine deployment
             if (this.inputState.deployMine && this.playerVehicle && this.mineSystem) {
                 console.log('Attempting to deploy mine');
-                // Get position slightly behind the vehicle
+                
+                // Get vehicle position and orientation
                 const vehiclePosition = this.playerVehicle._vehicle.chassisBody.position;
                 const vehicleQuaternion = this.playerVehicle._vehicle.chassisBody.quaternion;
                 
-                // Calculate position behind vehicle
+                // Calculate backward direction vector
                 const backward = new THREE.Vector3(0, 0, 1);
                 backward.applyQuaternion(new THREE.Quaternion(
                     vehicleQuaternion.x,
@@ -275,17 +292,46 @@ export class Game {
                     vehicleQuaternion.z,
                     vehicleQuaternion.w
                 ));
+
+                // Get vehicle height - use bounding box if available, otherwise use default
+                let vehicleHeight = 2; // Default height
+                if (this.playerVehicle.chassisMesh) {
+                    // Force bounding box update
+                    this.playerVehicle.chassisMesh.updateMatrixWorld(true);
+                    const boundingBox = new THREE.Box3().setFromObject(this.playerVehicle.chassisMesh);
+                    vehicleHeight = boundingBox.max.y - boundingBox.min.y;
+                }
                 
+                // Calculate mine position:
+                // - 2 units behind vehicle
+                // - Above the vehicle's top (vehicle position + half height + extra clearance)
+                // - Apply a small downward velocity when deploying
+                const deployHeight = vehiclePosition.y + (vehicleHeight / 2) + 1;
                 const minePosition = new CANNON.Vec3(
                     vehiclePosition.x - backward.x * 2,
-                    vehiclePosition.y - 0.5, // Slightly below vehicle
+                    deployHeight,
                     vehiclePosition.z - backward.z * 2
                 );
 
-                console.log('Creating mine at position:', minePosition);
+                console.log('Creating mine at position:', {
+                    x: minePosition.x,
+                    y: minePosition.y,
+                    z: minePosition.z,
+                    vehicleY: vehiclePosition.y,
+                    deployHeight: deployHeight,
+                    vehicleHeight: vehicleHeight
+                });
+
                 const mineId = this.mineSystem.createMine(
                     minePosition,
-                    {},
+                    {
+                        initialVelocity: new CANNON.Vec3(
+                            -backward.x * 2, // Add backward momentum
+                            -3,             // Stronger downward velocity
+                            -backward.z * 2
+                        ),
+                        deployHeight: deployHeight
+                    },
                     this.playerVehicle._vehicle.chassisBody.vehicleId
                 );
                 
@@ -344,8 +390,8 @@ export class Game {
 
         console.log('Starting vehicle respawn...');
         
-        // Store current vehicle type - use the actual vehicle type ID
-        const vehicleType = this.playerVehicle.options.type || 'muscle';
+        // Get the vehicle type from the correct property
+        const vehicleType = this.playerVehicle.type || 'base';
         console.log('Respawning vehicle type:', vehicleType);
         
         // Remove old vehicle and create new one of same type
@@ -447,11 +493,18 @@ export class Game {
             console.log('Mine explosion event received:', { vehicleId, damage, minePosition });
             
             // Find the vehicle that hit the mine
-            if (this.playerVehicle && this.playerVehicle._vehicle.chassisBody.vehicleId === vehicleId) {
+            if (this.playerVehicle && 
+                this.playerVehicle._vehicle && 
+                this.playerVehicle._vehicle.chassisBody.vehicleId === vehicleId) {
+                
                 // Schedule damage application for next frame to avoid physics step conflicts
                 requestAnimationFrame(() => {
-                    // Double check vehicle still exists
-                    if (this.playerVehicle && this.playerVehicle.takeDamage) {
+                    // Double check vehicle still exists and isn't already destroyed
+                    if (this.playerVehicle && 
+                        this.playerVehicle._vehicle && 
+                        this.playerVehicle.takeDamage &&
+                        !this.isRespawning) {
+                        
                         console.log('Applying mine damage to vehicle:', damage);
                         this.playerVehicle.takeDamage(damage);
                         
@@ -595,11 +648,13 @@ export class Game {
 
         // Handle mine deployment
         if (this.inputState.deployMine && this.playerVehicle && this.mineSystem) {
-            // Get position slightly behind the vehicle
-            const vehiclePosition = vehicle.chassisBody.position;
-            const vehicleQuaternion = vehicle.chassisBody.quaternion;
+            console.log('Attempting to deploy mine');
             
-            // Calculate position behind vehicle
+            // Get vehicle position and orientation
+            const vehiclePosition = this.playerVehicle._vehicle.chassisBody.position;
+            const vehicleQuaternion = this.playerVehicle._vehicle.chassisBody.quaternion;
+            
+            // Calculate backward direction vector
             const backward = new THREE.Vector3(0, 0, 1);
             backward.applyQuaternion(new THREE.Quaternion(
                 vehicleQuaternion.x,
@@ -607,21 +662,54 @@ export class Game {
                 vehicleQuaternion.z,
                 vehicleQuaternion.w
             ));
+
+            // Get vehicle height - use bounding box if available, otherwise use default
+            let vehicleHeight = 2; // Default height
+            if (this.playerVehicle.chassisMesh) {
+                // Force bounding box update
+                this.playerVehicle.chassisMesh.updateMatrixWorld(true);
+                const boundingBox = new THREE.Box3().setFromObject(this.playerVehicle.chassisMesh);
+                vehicleHeight = boundingBox.max.y - boundingBox.min.y;
+            }
             
+            // Calculate mine position:
+            // - 2 units behind vehicle
+            // - Above the vehicle's top (vehicle position + half height + extra clearance)
+            // - Apply a small downward velocity when deploying
+            const deployHeight = vehiclePosition.y + (vehicleHeight / 2) + 1;
             const minePosition = new CANNON.Vec3(
                 vehiclePosition.x - backward.x * 2,
-                vehiclePosition.y - 0.5, // Slightly below vehicle
+                deployHeight,
                 vehiclePosition.z - backward.z * 2
             );
 
+            console.log('Creating mine at position:', {
+                x: minePosition.x,
+                y: minePosition.y,
+                z: minePosition.z,
+                vehicleY: vehiclePosition.y,
+                deployHeight: deployHeight,
+                vehicleHeight: vehicleHeight
+            });
+
             const mineId = this.mineSystem.createMine(
                 minePosition,
-                {},
-                vehicle.chassisBody.vehicleId
+                {
+                    initialVelocity: new CANNON.Vec3(
+                        -backward.x * 2, // Add backward momentum
+                        -3,             // Stronger downward velocity
+                        -backward.z * 2
+                    ),
+                    deployHeight: deployHeight
+                },
+                this.playerVehicle._vehicle.chassisBody.vehicleId
             );
             
             if (mineId !== null) {
+                console.log('Mine deployed successfully:', mineId);
                 this.mineDisplay.updateCount(this.mineSystem.currentMines, this.mineSystem.maxMines);
+            } else {
+                console.log('Failed to deploy mine - no mines available');
             }
             
             this.inputState.deployMine = false;
@@ -719,7 +807,7 @@ export class Game {
         const bodyA = event.bodyA;
         const bodyB = event.bodyB;
 
-        // Check if either body is a power-up (collision group 2)
+        // First check for power-up collisions (group 2)
         let powerUpBody, vehicleBody;
         if (bodyA && bodyB) {
             if (bodyA.collisionFilterGroup === 2) {
@@ -731,7 +819,7 @@ export class Game {
             }
         }
 
-        // If we found a power-up collision
+        // Handle power-up collisions first
         if (powerUpBody && vehicleBody && vehicleBody.userData?.vehicle === this.playerVehicle) {
             // Find the power-up ID
             let powerUpId = null;
@@ -744,15 +832,17 @@ export class Game {
 
             if (powerUpId !== null) {
                 this.handlePowerUpCollision(powerUpId);
+                return; // Exit early after handling power-up collision
             }
         }
 
-        // Handle mine collisions
+        // Then check for mine collisions (group 4)
         if (bodyA && bodyB) {
-            const mineBody = bodyA.isMine ? bodyA : (bodyB.isMine ? bodyB : null);
+            const mineBody = bodyA.collisionFilterGroup === 4 ? bodyA : (bodyB.collisionFilterGroup === 4 ? bodyB : null);
             const vehicleBody = mineBody === bodyA ? bodyB : bodyA;
 
-            if (mineBody && vehicleBody && vehicleBody.vehicleId) {
+            // Only proceed with mine collision if it's not a power-up collision
+            if (mineBody && vehicleBody && vehicleBody.vehicleId && !powerUpBody) {
                 const mine = this.mineSystem.mines.get(mineBody.mineId);
                 if (mine && mine.isArmed && !mine.isExploded) {
                     console.log('Mine collision detected:', {
@@ -791,15 +881,46 @@ export class Game {
         }
     }
     
-    handleMineCollision(mine, vehicle) {
-        console.log('Vehicle hit mine:', {
-            vehicleId: vehicle.id,
-            minePosition: mine.position,
-            damage: mine.damage
-        });
+    handleMineCollision(event) {
+        const { bodyA, bodyB } = event;
+        if (!bodyA || !bodyB) return;
 
-        vehicle.takeDamage(mine.damage);
-        mine.explode();
+        // Find which body is the mine
+        const mineBody = bodyA.isMine ? bodyA : (bodyB.isMine ? bodyB : null);
+        if (!mineBody) return;
+
+        // Get the other body (should be a vehicle)
+        const vehicleBody = mineBody === bodyA ? bodyB : bodyA;
+        if (!vehicleBody.vehicleId) return;
+
+        // Only handle collisions with the player's vehicle
+        if (vehicleBody.vehicleId === this.playerVehicle.id) {
+            const mine = this.mineSystem.mines.get(mineBody.mineId);
+            if (mine && mine.isArmed && !mine.isExploded) {
+                console.log('Player vehicle hit mine:', {
+                    mineId: mine.id,
+                    vehicleId: vehicleBody.vehicleId,
+                    damage: mine.options.damage
+                });
+
+                // Calculate explosion force
+                const explosionForce = new CANNON.Vec3();
+                explosionForce.copy(vehicleBody.position);
+                explosionForce.vsub(mine.body.position, explosionForce);
+                explosionForce.normalize();
+                explosionForce.scale(1000, explosionForce);
+
+                // Apply damage to vehicle
+                this.playerVehicle.takeDamage(mine.options.damage);
+
+                // Apply explosion force
+                vehicleBody.applyImpulse(explosionForce, new CANNON.Vec3(0, 0, 0));
+
+                // Trigger mine explosion
+                mine.explode();
+                this.mineSystem.mines.delete(mine.id);
+            }
+        }
     }
     
     cleanup() {
@@ -824,6 +945,9 @@ export class Game {
 
         // Cleanup mine system
         this.mineSystem.cleanup();
+
+        // Stop collision system
+        this.collisionSystem.stop();
     }
 
     handleKeyDown(event) {

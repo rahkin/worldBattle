@@ -5,8 +5,8 @@ import { VehicleGeometryFactory } from '../../utils/GeometryUtils.js';
 import { ProjectileSystem } from '../ProjectileSystem.js';
 
 export class Ironclad extends BaseCar {
-    constructor(world, scene, game) {
-        const options = {
+    constructor(world, scene, game, options = {}) {
+        const defaultOptions = {
             width: 1.4,
             height: 0.7,
             length: 2.8,
@@ -26,9 +26,11 @@ export class Ironclad extends BaseCar {
             maxSuspensionTravel: 0.4,
             engineForce: 8000,  // Extremely powerful engine
             brakeForce: 200,    // Strong brakes
-            maxSteerAngle: 0.5  // Reduced for stability
+            maxSteerAngle: 0.5,  // Reduced for stability
+            type: 'ironclad'  // Ensure type is set
         };
-        super(world, scene, options);
+        
+        super(world, scene, { ...defaultOptions, ...options });
 
         this.game = game;  // Store game reference
 

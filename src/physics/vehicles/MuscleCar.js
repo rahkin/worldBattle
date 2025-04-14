@@ -6,8 +6,8 @@ import { CylinderGeometry } from 'three';
 import { ProjectileSystem } from '../../physics/ProjectileSystem.js';
 
 export class MuscleCar extends BaseCar {
-    constructor(world, scene, game) {
-        const options = {
+    constructor(world, scene, game, options = {}) {
+        const defaultOptions = {
             width: 1.2,
             height: 0.5,
             length: 2.4,
@@ -30,9 +30,11 @@ export class MuscleCar extends BaseCar {
             weaponFireRate: 100, // ms between shots
             weaponSpread: 0.02,
             weaponRange: 800,
-            weaponProjectileSpeed: 200
+            weaponProjectileSpeed: 200,
+            type: 'muscle'  // Ensure type is set
         };
-        super(world, scene, options);
+        
+        super(world, scene, { ...defaultOptions, ...options });
 
         this.game = game;
 

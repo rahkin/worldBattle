@@ -127,6 +127,7 @@ A 3D vehicle combat game built with Three.js and CANNON.js.
 - [x] Vehicle damage states and explosion
 - [x] Weapon system (Dual Cannons, projectile firing)
 - [x] Power-up system (Health, Speed, Overcharge)
+- [x] Mine system (Deployment, Chain Reactions)
 - [x] Resupply system (ammo refill with cooldown)
 - [x] Day/Night system (24-hour cycle, lighting, headlights)
 - [x] Weather system (Clear, Cloudy, Foggy, Storm)
@@ -410,3 +411,62 @@ Key Features:
 - Muzzle flash effects
 - Long-range projectiles (1600 units)
 - High accuracy with minimal spread 
+
+## Game Systems
+
+### Mine System
+- Deployable mines from vehicle rear
+- Visual arming sequence with blinking effect
+- Chain reaction explosions
+- Damage and force application
+- Mine resupply through power-ups
+- Features:
+  - Top-rear deployment
+  - 2-second arming delay
+  - Visual indicators (spikes, glow effects)
+  - Chain reaction radius of 3 units
+  - Proper collision handling with vehicles
+  - No interference with power-up collection
+
+## DEVLOG
+
+### April 15, 2024
+- Implemented complete mine system overhaul:
+  - Fixed collision detection issues
+  - Added chain reaction system
+  - Improved visual feedback
+  - Fixed multiple damage application bug
+  - Added proper deployment from vehicle top
+  - Improved mine physics and dropping mechanics
+  - Added visual effects (spikes, glow, pulsing)
+  - Separated power-up and mine collision groups
+  - Added proper cleanup of exploded mines
+
+### File Structure
+```
+src/
+├── core/
+│   ├── Game.js             # Main game logic
+│   ├── InputManager.js     # Input handling
+│   ├── GameLoop.js        # Game loop management
+│   ├── TimeSystem.js      # Day/night cycle
+│   └── WeatherSystem.js   # Weather effects
+├── physics/
+│   ├── PhysicsWorld.js    # Physics engine setup
+│   ├── VehicleFactory.js  # Vehicle creation
+│   ├── MineSystem.js      # Mine mechanics
+│   ├── PowerUpSystem.js   # Power-up handling
+│   └── CollisionSystem.js # Collision management
+├── rendering/
+│   ├── SceneManager.js    # Scene management
+│   └── CameraManager.js   # Camera controls
+├── ui/
+│   ├── HealthBar.js       # Health display
+│   ├── AmmoDisplay.js     # Ammo counter
+│   ├── MineDisplay.js     # Mine counter
+│   └── PowerUpDisplay.js  # Power-up effects
+└── vehicles/
+    ├── BaseCar.js         # Base vehicle class
+    ├── MuscleCar.js       # Muscle car variant
+    └── Scorpion.js        # Scorpion variant
+``` 

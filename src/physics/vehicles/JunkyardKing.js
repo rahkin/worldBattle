@@ -4,8 +4,8 @@ import { VehicleGeometryFactory } from '../../utils/GeometryUtils.js';
 import { ProjectileSystem } from '../ProjectileSystem.js';
 
 export class JunkyardKing extends BaseCar {
-    constructor(world, scene, game) {
-        const options = {
+    constructor(world, scene, game, options = {}) {
+        const defaultOptions = {
             width: 1.3,
             height: 0.7,
             length: 2.6,
@@ -25,9 +25,11 @@ export class JunkyardKing extends BaseCar {
             maxSuspensionTravel: 0.4,
             engineForce: 6000,  // Massively increased engine power
             brakeForce: 150,    // Stronger brakes to match power
-            maxSteerAngle: 0.6  // Slightly increased for better turning
+            maxSteerAngle: 0.6,  // Slightly increased for better turning
+            type: 'junkyard'  // Ensure type is set
         };
-        super(world, scene, options);
+        
+        super(world, scene, { ...defaultOptions, ...options });
 
         this.game = game;  // Store game reference
 

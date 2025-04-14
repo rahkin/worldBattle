@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import * as CANNON from 'cannon-es';
+import { COLLISION_GROUPS, COLLISION_MASKS } from './CollisionSystem.js';
 
 export const POWER_UP_TYPES = {
     HEALTH: {
@@ -269,9 +270,9 @@ export class PowerUpSystem {
                     position: new CANNON.Vec3(position.x, position.y + height/2, position.z),
                     shape: shape,
                     material: this.powerUpMaterial,
-                    collisionFilterGroup: 2, // Power-up group
-                    collisionFilterMask: 1, // Only collide with vehicles
-                    isTrigger: true // Make it a trigger volume
+                    collisionFilterGroup: COLLISION_GROUPS.POWER_UP,
+                    collisionFilterMask: COLLISION_MASKS.POWER_UP,
+                    isTrigger: true
                 });
 
                 // Rotate cylinder to lay flat
@@ -291,8 +292,8 @@ export class PowerUpSystem {
                     position: new CANNON.Vec3(position.x, position.y + size/2, position.z),
                     shape: shape,
                     material: this.powerUpMaterial,
-                    collisionFilterGroup: 2,
-                    collisionFilterMask: 1,
+                    collisionFilterGroup: COLLISION_GROUPS.POWER_UP,
+                    collisionFilterMask: COLLISION_MASKS.POWER_UP,
                     isTrigger: true
                 });
                 geometry = new THREE.BoxGeometry(size, size, size);
@@ -303,12 +304,17 @@ export class PowerUpSystem {
                     position: new CANNON.Vec3(position.x, position.y, position.z),
                     shape: new CANNON.Sphere(0.5),
                     material: this.powerUpMaterial,
-                    collisionFilterGroup: 2,
-                    collisionFilterMask: 1,
+                    collisionFilterGroup: COLLISION_GROUPS.POWER_UP,
+                    collisionFilterMask: COLLISION_MASKS.POWER_UP,
                     isTrigger: true
                 });
                 geometry = new THREE.SphereGeometry(0.5, 32, 32);
             }
+
+            // Set collision filters to prevent interaction with mines
+            body.collisionFilterGroup = COLLISION_GROUPS.POWER_UP;
+            body.collisionFilterMask = COLLISION_MASKS.POWER_UP;
+            body.isTrigger = true;
 
             const material = new THREE.MeshStandardMaterial({
                 color: type.color,
@@ -543,7 +549,8 @@ export class PowerUpSystem {
             powerUpId,
             type: powerUpType.id,
             vehicle: vehicle,
-            hasGame: !!this.game
+            hasGame: !!this.game,
+            hasMineSystem: !!(this.game && this.game.mineSystem)
         });
 
         // Apply the power-up effect, passing the game instance for mine power-ups

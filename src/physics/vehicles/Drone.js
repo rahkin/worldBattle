@@ -5,8 +5,8 @@ import { VehicleGeometryFactory } from '../../utils/GeometryUtils.js';
 import { ProjectileSystem } from '../../physics/ProjectileSystem.js';
 
 export class Drone extends BaseCar {
-    constructor(world, scene, game) {
-        const options = {
+    constructor(world, scene, game, options = {}) {
+        const defaultOptions = {
             width: 0.8,
             height: 0.25,  // Very low profile
             length: 1.8,
@@ -29,9 +29,11 @@ export class Drone extends BaseCar {
             weaponFireRate: 200, // ms between shots
             weaponSpread: 0.01,
             weaponRange: 1200,
-            weaponProjectileSpeed: 300 // Very fast projectiles
+            weaponProjectileSpeed: 300, // Very fast projectiles
+            type: 'drone'  // Ensure type is set
         };
-        super(world, scene, options);
+        
+        super(world, scene, { ...defaultOptions, ...options });
 
         this.game = game;
         this.inputManager = game.inputManager;

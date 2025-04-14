@@ -4,8 +4,8 @@ import { VehicleGeometryFactory } from '../../utils/GeometryUtils.js';
 import { ProjectileSystem } from '../ProjectileSystem.js';
 
 export class Tank extends BaseCar {
-    constructor(world, scene, game) {
-        const options = {
+    constructor(world, scene, game, options = {}) {
+        const defaultOptions = {
             width: 1.3,
             height: 0.6,
             length: 2.6,
@@ -25,9 +25,11 @@ export class Tank extends BaseCar {
             maxSuspensionTravel: 0.4,
             engineForce: 10000,  // Most powerful engine
             brakeForce: 200,    // Strong brakes
-            maxSteerAngle: 0.5  // Limited turning for realism
+            maxSteerAngle: 0.5,  // Limited turning for realism
+            type: 'tank'  // Ensure type is set
         };
-        super(world, scene, options);
+        
+        super(world, scene, { ...defaultOptions, ...options });
 
         this.game = game;
         

@@ -5,8 +5,8 @@ import { CapsuleGeometry, CylinderGeometry } from 'three';
 import { ProjectileSystem } from '../../physics/ProjectileSystem.js';
 
 export class Scorpion extends BaseCar {
-    constructor(world, scene, game) {
-        const options = {
+    constructor(world, scene, game, options = {}) {
+        const defaultOptions = {
             width: 1.1,
             height: 0.35,  // Very low profile
             length: 2.6,   // Long and sleek
@@ -29,9 +29,11 @@ export class Scorpion extends BaseCar {
             weaponFireRate: 150, // ms between shots (faster than Muscle Car)
             weaponSpread: 0.015,
             weaponRange: 1000,
-            weaponProjectileSpeed: 250 // Faster projectiles
+            weaponProjectileSpeed: 250, // Faster projectiles
+            type: 'scorpion'  // Ensure type is set
         };
-        super(world, scene, options);
+        
+        super(world, scene, { ...defaultOptions, ...options });
 
         this.game = game;
         this.inputManager = game.inputManager; // Store input manager reference

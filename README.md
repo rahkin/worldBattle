@@ -26,6 +26,14 @@ A 3D vehicle combat game built with Three.js and CANNON.js.
   - Health display HUD
   - Respawn countdown timer
   - Explosion effects
+  - Enhanced star field system:
+    - High-precision star rendering with multi-layer shading
+    - Accurate constellation mapping (Big Dipper, Orion, Cassiopeia, etc.)
+    - Dynamic star visibility based on time of day
+    - Optimized rendering with logarithmic depth buffer
+    - Realistic star clustering and distribution
+    - Natural color temperature distribution
+    - Sharp point rendering for clear visibility
 
 - Game mechanics:
   - Vehicle selection system

@@ -3,10 +3,17 @@ import * as THREE from 'three';
 export class SceneManager {
     constructor() {
         this.scene = new THREE.Scene();
+        // Configure renderer with optimal settings for star field
         this.renderer = new THREE.WebGLRenderer({
-            antialias: true,
-            powerPreference: "high-performance"
+            antialias: false,  // Disable antialiasing for sharper points
+            powerPreference: "high-performance",
+            precision: "highp",
+            alpha: false,
+            stencil: false,
+            depth: true,
+            logarithmicDepthBuffer: true  // Better depth handling for large scale differences
         });
+        
         this.obstacles = [];
     }
 
@@ -57,36 +64,35 @@ export class SceneManager {
     }
 
     init() {
-        // Setup renderer
+        // Setup renderer with optimal settings
         this.renderer.setSize(window.innerWidth, window.innerHeight);
-        this.renderer.setPixelRatio(window.devicePixelRatio);
+        this.renderer.setPixelRatio(window.devicePixelRatio); // Use native pixel ratio for sharp points
         this.renderer.shadowMap.enabled = true;
+        this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        this.renderer.autoClear = true;
+        this.renderer.sortObjects = false;
+        this.renderer.physicallyCorrectLights = true;
+        this.renderer.toneMapping = THREE.NoToneMapping; // Disable tone mapping for accurate star brightness
+        
+        // Set clear color to pure black for better star contrast
+        this.renderer.setClearColor(0x000000, 1);
+        
         document.body.appendChild(this.renderer.domElement);
 
-        // Add lights
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
-        this.scene.add(ambientLight);
-
-        const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
-        directionalLight.position.set(100, 100, 50);
-        directionalLight.castShadow = true;
-        this.scene.add(directionalLight);
-
-        // Add ground
+        // Add ground with darker color for better star visibility
         const groundGeometry = new THREE.PlaneGeometry(1000, 1000);
         const groundMaterial = new THREE.MeshStandardMaterial({ 
-            color: 0x808080,
-            roughness: 0.8,
-            metalness: 0.2
+            color: 0x202020,  // Darker ground
+            roughness: 0.9,
+            metalness: 0.1
         });
         const ground = new THREE.Mesh(groundGeometry, groundMaterial);
         ground.rotation.x = -Math.PI / 2;
         ground.receiveShadow = true;
         this.scene.add(ground);
 
-        // Add simple skybox
-        const skyColor = new THREE.Color(0x87ceeb);
-        this.scene.background = skyColor;
+        // Remove simple skybox - TimeSystem will handle sky and stars
+        // this.scene.background = new THREE.Color(0x87ceeb);
 
         // Add ramps at strategic locations
         this.createRamp(new THREE.Vector3(10, 0, 0));  // Right side ramp
@@ -111,6 +117,8 @@ export class SceneManager {
     }
 
     render(camera) {
+        // Ensure proper state before rendering
+        this.renderer.clear(true, true, true);
         this.renderer.render(this.scene, camera);
     }
 } 

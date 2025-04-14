@@ -4,10 +4,12 @@ import { Sky } from 'three/examples/jsm/objects/Sky.js';
 export class TimeSystem {
     constructor(scene) {
         this.scene = scene;
-        this.currentTime = new Date();
+        this.currentTime = new Date(); // This will automatically use local time
         this.timeScale = 1.0; // Real-time by default
-        this.timeZone = 'UTC'; // Default timezone
+        this.timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone; // Get local timezone
         this.isPaused = false;
+        this.isTestMode = false;
+        this.testTime = null;
         
         // Lighting setup
         this.ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
@@ -36,7 +38,7 @@ export class TimeSystem {
     initSky() {
         // Create Sky instance
         this.sky = new Sky();
-        this.sky.scale.setScalar(450000);
+        this.sky.scale.setScalar(1125000);  // Increased proportionally for 5000 unit radius (675000 * 5000/3000)
         this.scene.add(this.sky);
 
         // Sky shader uniforms for more realistic atmospheric scattering
@@ -64,7 +66,6 @@ export class TimeSystem {
     }
 
     createStarField() {
-        // Create main star field
         const starGeometry = new THREE.BufferGeometry();
         const starCount = 5000;
         const starPositions = new Float32Array(starCount * 3);
@@ -76,13 +77,13 @@ export class TimeSystem {
             {
                 name: 'Big Dipper',
                 stars: [
-                    { x: 0.0, y: 0.8, z: 0.0, size: 120, color: [1.0, 0.95, 0.8] }, // Dubhe
-                    { x: 0.2, y: 0.75, z: 0.0, size: 110, color: [1.0, 0.9, 0.7] }, // Merak
-                    { x: 0.4, y: 0.6, z: 0.0, size: 130, color: [0.9, 0.9, 1.0] },  // Phecda
-                    { x: 0.6, y: 0.5, z: 0.0, size: 115, color: [1.0, 1.0, 0.9] },  // Megrez
-                    { x: 0.8, y: 0.45, z: 0.0, size: 125, color: [1.0, 0.95, 0.8] }, // Alioth
-                    { x: 1.0, y: 0.3, z: 0.0, size: 120, color: [0.95, 0.95, 1.0] }, // Mizar
-                    { x: 1.2, y: 0.25, z: 0.0, size: 100, color: [1.0, 1.0, 0.9] }  // Alkaid
+                    { x: 0.0, y: 0.8, z: 0.0, size: 400, color: [1.0, 0.98, 0.9] }, // Dubhe
+                    { x: 0.2, y: 0.75, z: 0.0, size: 380, color: [1.0, 0.95, 0.85] }, // Merak
+                    { x: 0.4, y: 0.6, z: 0.0, size: 420, color: [0.95, 0.95, 1.0] },  // Phecda
+                    { x: 0.6, y: 0.5, z: 0.0, size: 390, color: [1.0, 1.0, 0.95] },  // Megrez
+                    { x: 0.8, y: 0.45, z: 0.0, size: 410, color: [1.0, 0.98, 0.9] }, // Alioth
+                    { x: 1.0, y: 0.3, z: 0.0, size: 400, color: [0.98, 0.98, 1.0] }, // Mizar
+                    { x: 1.2, y: 0.25, z: 0.0, size: 350, color: [1.0, 1.0, 0.95] }  // Alkaid
                 ]
             },
             {
@@ -135,118 +136,122 @@ export class TimeSystem {
         
         let currentStar = 0;
         
-        // Create constellation stars with accurate patterns
+        // Create constellation stars
         constellations.forEach(constellation => {
             constellation.stars.forEach(star => {
                 const i3 = currentStar * 3;
+                const radius = 5000;
                 
-                // Position stars in a dome pattern
-                const baseRadius = 8000;
-                starPositions[i3] = star.x * baseRadius;
-                starPositions[i3 + 1] = (star.y + 0.2) * baseRadius; // Lift slightly higher in sky
-                starPositions[i3 + 2] = star.z * baseRadius;
+                starPositions[i3] = star.x * radius;
+                starPositions[i3 + 1] = (star.y + 0.2) * radius;
+                starPositions[i3 + 2] = star.z * radius;
                 
-                // Apply star colors
                 starColors[i3] = star.color[0];
                 starColors[i3 + 1] = star.color[1];
                 starColors[i3 + 2] = star.color[2];
                 
-                // Set star size
                 starSizes[currentStar] = star.size;
-                
                 currentStar++;
             });
         });
         
-        // Fill the rest with random stars
+        // Fill remaining stars
         for (let i = currentStar; i < starCount; i++) {
             const i3 = i * 3;
+            const radius = 5000;
             
-            // Create stars in a dome shape above the scene
+            // Create more clustered star distribution
             const theta = Math.random() * Math.PI * 2;
-            const phi = Math.random() * Math.PI * 0.5;
-            const radius = 8000;
+            const phi = Math.acos(Math.pow(Math.random(), 0.5)); // Clustered towards zenith
             
             starPositions[i3] = radius * Math.sin(phi) * Math.cos(theta);
             starPositions[i3 + 1] = radius * Math.cos(phi);
             starPositions[i3 + 2] = radius * Math.sin(phi) * Math.sin(theta);
             
-            // Vary star colors with more variety
-            const colorChoice = Math.random();
-            if (colorChoice < 0.2) {
-                // Bluish-white stars
-                starColors[i3] = 0.8;
-                starColors[i3 + 1] = 0.9;
+            // Simplified color palette for clearer stars
+            if (Math.random() < 0.7) {
+                // White/blue-white stars (majority)
+                const temp = 0.95 + Math.random() * 0.05;
+                starColors[i3] = temp;
+                starColors[i3 + 1] = temp;
                 starColors[i3 + 2] = 1.0;
-            } else if (colorChoice < 0.4) {
-                // Pure white stars
-                starColors[i3] = 1.0;
-                starColors[i3 + 1] = 1.0;
-                starColors[i3 + 2] = 1.0;
-            } else if (colorChoice < 0.6) {
+            } else if (Math.random() < 0.85) {
                 // Yellow stars
                 starColors[i3] = 1.0;
-                starColors[i3 + 1] = 0.9;
-                starColors[i3 + 2] = 0.7;
-            } else if (colorChoice < 0.8) {
+                starColors[i3 + 1] = 0.95;
+                starColors[i3 + 2] = 0.8;
+            } else {
                 // Red stars
                 starColors[i3] = 1.0;
                 starColors[i3 + 1] = 0.8;
                 starColors[i3 + 2] = 0.8;
-            } else {
-                // Blue stars
-                starColors[i3] = 0.8;
-                starColors[i3 + 1] = 0.8;
-                starColors[i3 + 2] = 1.0;
             }
             
-            // Smaller sizes for background stars
-            starSizes[i] = 40.0 + Math.random() * 20.0;
+            // More varied star sizes
+            starSizes[i] = 120 + Math.pow(Math.random(), 2) * 100;
         }
-        
+
         starGeometry.setAttribute('position', new THREE.BufferAttribute(starPositions, 3));
         starGeometry.setAttribute('color', new THREE.BufferAttribute(starColors, 3));
         starGeometry.setAttribute('size', new THREE.BufferAttribute(starSizes, 1));
         
-        // Create custom shader material for stars with enhanced visibility
         const starMaterial = new THREE.ShaderMaterial({
             uniforms: {
                 time: { value: 0 },
-                opacity: { value: 1.0 } // Start with full opacity
+                opacity: { value: 1.0 }
             },
             vertexShader: `
                 attribute float size;
                 varying vec3 vColor;
+                varying float vDistance;
                 uniform float time;
                 
                 void main() {
                     vColor = color;
                     vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
-                    float twinkle = sin(time * 2.0 + position.x * 0.5) * 0.5 + 0.5;
-                    gl_PointSize = size * (300.0 / -mvPosition.z) * (0.8 + twinkle * 0.4);
+                    vDistance = -mvPosition.z;
+                    float twinkle = sin(time * 1.5 + position.x * 0.5) * 0.5 + 0.5;
+                    gl_PointSize = size * (1000.0 / -mvPosition.z) * (0.98 + twinkle * 0.04);
                     gl_Position = projectionMatrix * mvPosition;
                 }
             `,
             fragmentShader: `
                 varying vec3 vColor;
+                varying float vDistance;
                 uniform float opacity;
                 
                 void main() {
                     float dist = length(gl_PointCoord - vec2(0.5));
                     if (dist > 0.5) discard;
-                    float intensity = pow(1.0 - dist * 2.0, 2.0);
+                    
+                    // Multi-layer star rendering
+                    float intensity = 0.0;
+                    
+                    // Sharp core
+                    intensity += pow(1.0 - dist * 1.2, 20.0);
+                    
+                    // Bright center
+                    intensity += pow(1.0 - dist, 40.0) * 0.5;
+                    
+                    // Outer glow
+                    intensity += pow(1.0 - dist * 1.8, 4.0) * 0.2;
+                    
+                    // Distance-based intensity adjustment
+                    float distanceFactor = clamp(vDistance / 5000.0, 0.0, 1.0);
+                    intensity *= mix(0.5, 1.0, distanceFactor);
+                    
                     gl_FragColor = vec4(vColor, opacity * intensity);
                 }
             `,
             transparent: true,
             vertexColors: true,
             blending: THREE.AdditiveBlending,
-            depthWrite: false,  // Important: Ensures stars are visible in front of sky
-            depthTest: false    // Important: Ensures stars are always rendered on top
+            depthWrite: false,
+            depthTest: false
         });
         
         this.starField = new THREE.Points(starGeometry, starMaterial);
-        this.starField.renderOrder = 999; // Ensure stars render last
+        this.starField.renderOrder = 999;
         this.scene.add(this.starField);
         
         // Initialize shooting stars
@@ -298,7 +303,7 @@ export class TimeSystem {
         const endTheta = startTheta + (Math.random() * 0.5 - 0.25);
         const endPhi = startPhi + Math.random() * 0.2;
         
-        const radius = 7500; // Adjusted distance
+        const radius = 5000;  // Updated from 3000 to 5000
         const startPos = new THREE.Vector3(
             radius * Math.sin(startPhi) * Math.cos(startTheta),
             radius * Math.cos(startPhi),
@@ -357,11 +362,28 @@ export class TimeSystem {
 
     updateTime() {
         if (!this.isPaused) {
-            const now = new Date();
-            const timeDiff = now - this.currentTime;
-            this.currentTime = new Date(this.currentTime.getTime() + timeDiff * this.timeScale);
+            if (this.isTestMode && this.testTime !== null) {
+                this.currentTime = new Date(this.testTime);
+            } else {
+                // Get current local time
+                const now = new Date();
+                // Update currentTime to match local time
+                this.currentTime = new Date(now);
+            }
         }
         this.updateLighting();
+    }
+
+    toggleTestMode() {
+        this.isTestMode = !this.isTestMode;
+        if (this.isTestMode) {
+            // Force night time (e.g., 1 AM)
+            this.testTime = new Date();
+            this.testTime.setHours(1, 0, 0, 0);
+        } else {
+            this.testTime = null;
+        }
+        console.log(`Test mode ${this.isTestMode ? 'enabled' : 'disabled'}, current time: ${this.getCurrentTimeString()}`);
     }
 
     updateLighting() {
@@ -370,7 +392,10 @@ export class TimeSystem {
         const timeOfDay = hours + minutes / 60;
         
         // Calculate sun position with more realistic parameters
-        const phi = THREE.MathUtils.degToRad(90 - ((timeOfDay / 24) * 360));
+        // Map 24-hour time to 360 degrees, with noon at highest point (90 degrees)
+        // and midnight at lowest point (-90 degrees)
+        const timeAngle = ((timeOfDay - 12) / 12) * Math.PI; // Convert time to radians
+        const phi = Math.PI/2 - timeAngle; // Adjust for Three.js coordinate system
         const theta = THREE.MathUtils.degToRad(180);
         
         this.sunPosition.setFromSphericalCoords(1000, phi, theta);
@@ -379,30 +404,30 @@ export class TimeSystem {
         if (timeOfDay >= 5 && timeOfDay < 7) {
             // Dawn
             const progress = (timeOfDay - 5) / 2;
-            this.skyParams.turbidity = 6 + progress * 4; // Clearer at dawn
-            this.skyParams.rayleigh = 2 + progress * 1.5; // More blue light scatter
-            this.skyParams.mieCoefficient = 0.005 + progress * 0.005; // More sun glow
-            this.skyParams.elevation = 2 + progress * 10; // Sun rising
+            this.skyParams.turbidity = 6 + progress * 4;
+            this.skyParams.rayleigh = 2 + progress * 1.5;
+            this.skyParams.mieCoefficient = 0.005 + progress * 0.005;
+            this.skyParams.elevation = -20 + progress * 32; // Steeper transition
         } else if (timeOfDay >= 7 && timeOfDay < 17) {
             // Day
             const noonProgress = Math.sin((timeOfDay - 7) / 10 * Math.PI);
             this.skyParams.turbidity = 10;
             this.skyParams.rayleigh = 3.5;
             this.skyParams.mieCoefficient = 0.01;
-            this.skyParams.elevation = 12 + noonProgress * 20; // Max elevation at noon
+            this.skyParams.elevation = 12 + noonProgress * 20;
         } else if (timeOfDay >= 17 && timeOfDay < 19) {
             // Dusk
             const progress = (timeOfDay - 17) / 2;
-            this.skyParams.turbidity = 10 - progress * 2; // More particles at dusk
-            this.skyParams.rayleigh = 3.5 - progress * 1.5; // More red light scatter
-            this.skyParams.mieCoefficient = 0.01 + progress * 0.01; // More sun glow
-            this.skyParams.elevation = 12 - progress * 10; // Sun setting
+            this.skyParams.turbidity = 10 - progress * 2;
+            this.skyParams.rayleigh = 3.5 - progress * 1.5;
+            this.skyParams.mieCoefficient = 0.01 + progress * 0.01;
+            this.skyParams.elevation = 12 - (progress * 32); // Steeper transition
         } else {
-            // Night
+            // Night (19:00 - 5:00)
             this.skyParams.turbidity = 8;
             this.skyParams.rayleigh = 2;
             this.skyParams.mieCoefficient = 0.002;
-            this.skyParams.elevation = 0;
+            this.skyParams.elevation = -20; // Keep sun well below horizon
         }
 
         // Apply updated parameters
@@ -425,25 +450,25 @@ export class TimeSystem {
             sunColor.setHSL(0.07, 1, 0.5 - (timeOfDay - 17) / 4);
         } else {
             // Night - slight blue tint
-            sunColor.setHSL(0.6, 0.2, 0.1);
+            sunColor.setHSL(0.6, 0.2, 0.05); // Reduced brightness for night
         }
 
         this.sunLight.color.copy(sunColor);
         this.moonLight.color.setHSL(0.6, 0.2, 0.2); // Subtle blue moonlight
         
         // Calculate intensities based on sun height
-        const sunHeight = Math.sin(phi);
+        const sunHeight = Math.sin(timeAngle); // Use timeAngle for more accurate day/night cycle
         const dayIntensity = Math.max(0, sunHeight);
         const nightIntensity = Math.max(0, -sunHeight);
         
         // Update light intensities with smoother transitions
         this.sunLight.intensity = dayIntensity * 1.2;
         this.moonLight.intensity = nightIntensity * 0.3;
-        this.ambientLight.intensity = 0.2 + (dayIntensity * 0.4);
+        this.ambientLight.intensity = 0.1 + (dayIntensity * 0.4); // Reduced base ambient for darker nights
         
         // Update star visibility with smoother fade
         const starOpacity = Math.max(0, Math.min(1, 
-            timeOfDay >= 19 ? (timeOfDay - 19) / 1 :
+            timeOfDay >= 19 ? 1 :
             timeOfDay < 5 ? 1 :
             timeOfDay < 7 ? 1 - ((timeOfDay - 5) / 2) : 0
         ));
@@ -484,6 +509,16 @@ export class TimeSystem {
         const hours = this.currentTime.getHours();
         const minutes = this.currentTime.getMinutes();
         return hours + minutes / 60;
+    }
+
+    getCurrentTimeString() {
+        return this.currentTime.toLocaleTimeString('en-US', {
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+            hour12: true,
+            timeZone: this.timeZone
+        });
     }
 
     // For future Mapbox integration

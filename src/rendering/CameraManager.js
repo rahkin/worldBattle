@@ -7,7 +7,7 @@ export class CameraManager {
             75,
             window.innerWidth / window.innerHeight,
             0.1,
-            1000
+            25000
         );
         this.controller = null;
         // Position camera behind and slightly above the vehicle

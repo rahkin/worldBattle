@@ -66,25 +66,27 @@ export class SceneManager {
     init() {
         // Setup renderer with optimal settings
         this.renderer.setSize(window.innerWidth, window.innerHeight);
-        this.renderer.setPixelRatio(window.devicePixelRatio); // Use native pixel ratio for sharp points
+        this.renderer.setPixelRatio(window.devicePixelRatio);
         this.renderer.shadowMap.enabled = true;
         this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
         this.renderer.autoClear = true;
         this.renderer.sortObjects = false;
         this.renderer.physicallyCorrectLights = true;
-        this.renderer.toneMapping = THREE.NoToneMapping; // Disable tone mapping for accurate star brightness
+        this.renderer.toneMapping = THREE.ACESFilmicToneMapping; // Use ACES tone mapping for better HDR
+        this.renderer.outputEncoding = THREE.sRGBEncoding; // Use sRGB encoding for better color
         
-        // Set clear color to pure black for better star contrast
-        this.renderer.setClearColor(0x000000, 1);
+        // Remove the black clear color - let the sky handle the background
+        this.renderer.setClearColor(0x000000, 0);
         
         document.body.appendChild(this.renderer.domElement);
 
-        // Add ground with darker color for better star visibility
-        const groundGeometry = new THREE.PlaneGeometry(1000, 1000);
+        // Add ground with better visibility
+        const groundGeometry = new THREE.PlaneGeometry(2000, 2000); // Increased size
         const groundMaterial = new THREE.MeshStandardMaterial({ 
-            color: 0x202020,  // Darker ground
-            roughness: 0.9,
-            metalness: 0.1
+            color: 0x3a3a3a,  // Lighter ground color
+            roughness: 0.8,    // Less rough for better light reflection
+            metalness: 0.2,    // Slightly more metallic
+            envMapIntensity: 1.0 // Better environment map response
         });
         const ground = new THREE.Mesh(groundGeometry, groundMaterial);
         ground.rotation.x = -Math.PI / 2;

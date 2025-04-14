@@ -19,6 +19,7 @@ import { MineDisplay } from '../ui/MineDisplay.js';
 import { TimeSystem } from './TimeSystem.js';
 import { WeatherSystem } from './WeatherSystem.js';
 import { CollisionSystem, COLLISION_GROUPS, COLLISION_MASKS } from '../physics/CollisionSystem.js';
+import { AudioSystem } from './AudioSystem.js';
 
 export class Game {
     constructor() {
@@ -61,10 +62,6 @@ export class Game {
         // Power-up spawn timer (in seconds)
         this.powerUpSpawnTimer = 0;
         this.powerUpSpawnInterval = 5; // 5 seconds for testing
-        console.log('Power-up spawn settings initialized:', {
-            interval: this.powerUpSpawnInterval,
-            timer: this.powerUpSpawnTimer
-        });
         
         // Initialize power-up system
         this.powerUpSystem = new PowerUpSystem(this.physicsWorld.world, this.sceneManager.scene, this.powerUpDisplay);
@@ -116,6 +113,12 @@ export class Game {
         // Add event listener for location access changes
         this.handleLocationAccess = this.handleLocationAccess.bind(this);
         window.addEventListener('locationaccesschanged', this.handleLocationAccess);
+
+        // Initialize audio system
+        this.audioSystem = new AudioSystem();
+        
+        // Fetch initial playlist
+        this.initializeAudio();
 
         this.setupUI();
     }
@@ -187,6 +190,10 @@ export class Game {
             // Start collision system
             this.collisionSystem.start();
 
+            // Initialize and start music
+            console.log('Initializing music system...');
+            await this.initializeAudio();
+
             // Hide loading screen
             console.log('Initialization complete, hiding loading screen...');
             const loadingScreen = document.getElementById('loading-screen');
@@ -205,6 +212,20 @@ export class Game {
                     loadingText.textContent = 'Failed to load game. Please refresh the page.';
                 }
             }
+        }
+    }
+
+    async initializeAudio() {
+        try {
+            // Fetch initial playlist with hiphop genre
+            await this.audioSystem.fetchJamendoPlaylist('hiphop', 10);
+            console.log('Initial playlist fetched successfully');
+            
+            // Start playing the first track
+            this.audioSystem.playTrack(0);
+            console.log('Started playing first track');
+        } catch (error) {
+            console.error('Error initializing audio:', error);
         }
     }
 
@@ -668,16 +689,7 @@ export class Game {
     }
 
     spawnRandomPowerUp() {
-        console.log('Attempting to spawn power-up...');
-        console.log('Current power-up system state:', {
-            hasSystem: !!this.powerUpSystem,
-            hasWorld: !!this.physicsWorld,
-            hasScene: !!this.sceneManager.scene,
-            powerUpCount: this.powerUpSystem?.powerUps?.size || 0
-        });
-        
         if (!this.powerUpSystem) {
-            console.error('Power-up system not initialized');
             return;
         }
         
@@ -689,37 +701,16 @@ export class Game {
         // Get random power-up type
         const types = Object.values(POWER_UP_TYPES);
         if (!types || types.length === 0) {
-            console.error('No power-up types available:', {
-                types: types,
-                POWER_UP_TYPES: POWER_UP_TYPES
-            });
             return;
         }
         
         const type = types[Math.floor(Math.random() * types.length)];
         
-        console.log('Spawning power-up:', {
-            type: type.id,
-            position: { x, y: 0.5, z },
-            availableTypes: types.map(t => t.id)
-        });
-        
         try {
             // Create power-up
             const powerUpId = this.powerUpSystem.createPowerUp(position, type);
-            console.log('Power-up created successfully:', {
-                id: powerUpId,
-                type: type.id,
-                position: position
-            });
-            
-            // Verify power-up was added to the system
-            console.log('Power-up system state after creation:', {
-                powerUpCount: this.powerUpSystem.powerUps.size,
-                hasPowerUp: this.powerUpSystem.powerUps.has(powerUpId)
-            });
         } catch (error) {
-            console.error('Failed to create power-up:', error);
+            // Silently handle error
         }
     }
     
@@ -871,6 +862,11 @@ export class Game {
 
         // Remove location access event listener
         window.removeEventListener('locationaccesschanged', this.handleLocationAccess);
+
+        // Stop music playback
+        if (this.audioSystem) {
+            this.audioSystem.stopTrack();
+        }
     }
 
     handleKeyDown(event) {
@@ -1004,6 +1000,141 @@ export class Game {
                 this.weatherDisplay.textContent = weatherText;
             }
         }, 1000);
+
+        // Add music controls
+        const musicControls = document.createElement('div');
+        musicControls.style.position = 'absolute';
+        musicControls.style.bottom = '10px';
+        musicControls.style.right = '10px';
+        musicControls.style.color = 'white';
+        musicControls.style.fontFamily = 'Arial, sans-serif';
+        musicControls.style.fontSize = '16px';
+        musicControls.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
+        musicControls.style.padding = '5px 10px';
+        musicControls.style.borderRadius = '5px';
+        musicControls.style.display = 'flex';
+        musicControls.style.alignItems = 'center';
+        musicControls.style.gap = '10px';
+        musicControls.style.flexDirection = 'column';
+
+        // Genre selector
+        const genreSelector = document.createElement('select');
+        genreSelector.style.width = '100%';
+        genreSelector.style.padding = '5px';
+        genreSelector.style.borderRadius = '5px';
+        genreSelector.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
+        genreSelector.style.color = 'white';
+        genreSelector.style.border = '1px solid rgba(255, 255, 255, 0.2)';
+        
+        const genres = [
+            'hiphop', 'rock', 'electronic', 'ambient', 'metal', 
+            'classical', 'jazz', 'pop', 'dance', 'instrumental'
+        ];
+        
+        genres.forEach(genre => {
+            const option = document.createElement('option');
+            option.value = genre;
+            option.textContent = genre.charAt(0).toUpperCase() + genre.slice(1);
+            genreSelector.appendChild(option);
+        });
+
+        // Set hiphop as default
+        genreSelector.value = 'hiphop';
+
+        // Play button
+        const playButton = document.createElement('button');
+        playButton.textContent = '▶️';
+        playButton.style.background = 'none';
+        playButton.style.border = 'none';
+        playButton.style.color = 'white';
+        playButton.style.cursor = 'pointer';
+        playButton.style.fontSize = '24px';
+        playButton.style.padding = '5px';
+
+        // Track info display
+        const trackInfo = document.createElement('div');
+        trackInfo.style.minWidth = '200px';
+        trackInfo.style.textAlign = 'center';
+        trackInfo.textContent = 'Click play to start music';
+
+        // Volume control
+        const volumeContainer = document.createElement('div');
+        volumeContainer.style.display = 'flex';
+        volumeContainer.style.alignItems = 'center';
+        volumeContainer.style.gap = '5px';
+        volumeContainer.style.width = '100%';
+
+        const volumeIcon = document.createElement('span');
+        volumeIcon.textContent = '🔊';
+        volumeIcon.style.fontSize = '14px';
+
+        const volumeSlider = document.createElement('input');
+        volumeSlider.type = 'range';
+        volumeSlider.min = '0';
+        volumeSlider.max = '100';
+        volumeSlider.value = '20';
+        volumeSlider.style.width = '100px';
+
+        // Event handlers
+        let isPlaying = false;
+
+        genreSelector.addEventListener('change', async () => {
+            if (isPlaying) {
+                this.audioSystem.stopTrack();
+                await this.audioSystem.fetchJamendoPlaylist(genreSelector.value, 10);
+                this.audioSystem.playTrack(0);
+            }
+        });
+
+        playButton.addEventListener('click', async () => {
+            if (!isPlaying) {
+                this.audioSystem.stopTrack();
+                await this.audioSystem.fetchJamendoPlaylist(genreSelector.value, 10);
+                this.audioSystem.playTrack(0);
+                playButton.textContent = '⏸️';
+                isPlaying = true;
+            } else {
+                this.audioSystem.stopTrack();
+                playButton.textContent = '▶️';
+                isPlaying = false;
+            }
+        });
+
+        volumeSlider.addEventListener('input', (e) => {
+            this.audioSystem.setVolume(e.target.value / 100);
+            const volume = parseInt(e.target.value);
+            if (volume === 0) {
+                volumeIcon.textContent = '🔇';
+            } else if (volume < 30) {
+                volumeIcon.textContent = '🔈';
+            } else if (volume < 70) {
+                volumeIcon.textContent = '🔉';
+            } else {
+                volumeIcon.textContent = '🔊';
+            }
+        });
+
+        // Update track info periodically
+        setInterval(() => {
+            if (this.audioSystem.playlist.length > 0 && isPlaying) {
+                const currentTrack = this.audioSystem.playlist[this.audioSystem.currentTrackIndex];
+                if (currentTrack) {
+                    trackInfo.textContent = `${currentTrack.name} - ${currentTrack.artist}`;
+                }
+            } else {
+                trackInfo.textContent = 'Click play to start music';
+            }
+        }, 1000);
+
+        // Assemble controls
+        musicControls.appendChild(genreSelector);
+        musicControls.appendChild(playButton);
+        musicControls.appendChild(trackInfo);
+        volumeContainer.appendChild(volumeIcon);
+        volumeContainer.appendChild(volumeSlider);
+        musicControls.appendChild(volumeContainer);
+        
+        document.body.appendChild(musicControls);
     }
 
     handleLocationAccess(event) {

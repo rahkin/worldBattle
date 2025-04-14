@@ -4,21 +4,47 @@ import { Sky } from 'three/examples/jsm/objects/Sky.js';
 export class TimeSystem {
     constructor(scene) {
         this.scene = scene;
+        this.time = 6; // Start at sunrise (6 AM)
+        this.timeScale = 1.0;
+        this.latitude = 0;
+        this.longitude = 0;
         this.currentTime = new Date(); // This will automatically use local time
-        this.timeScale = 1.0; // Real-time by default
         this.timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone; // Get local timezone
         this.isPaused = false;
         this.isTestMode = false;
         this.testTime = null;
         
-        // Lighting setup
-        this.ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
-        this.sunLight = new THREE.DirectionalLight(0xffffff, 1.0);
-        this.moonLight = new THREE.DirectionalLight(0x7f7fff, 0.3);
+        // Lighting setup with enhanced parameters
+        this.ambientLight = new THREE.AmbientLight(0xffffff, 0.5); // Increased ambient intensity
+        this.sunLight = new THREE.DirectionalLight(0xffffff, 2.0); // Increased sun intensity
+        this.moonLight = new THREE.DirectionalLight(0x7f7fff, 0.8); // Increased moon intensity
         
-        // Configure lights
+        // Configure lights with enhanced shadow parameters
         this.sunLight.castShadow = true;
+        this.sunLight.shadow.mapSize.width = 2048;
+        this.sunLight.shadow.mapSize.height = 2048;
+        this.sunLight.shadow.camera.near = 0.1;
+        this.sunLight.shadow.camera.far = 2000; // Increased far plane
+        this.sunLight.shadow.camera.left = -1000;
+        this.sunLight.shadow.camera.right = 1000;
+        this.sunLight.shadow.camera.top = 1000;
+        this.sunLight.shadow.camera.bottom = -1000;
+        this.sunLight.shadow.bias = -0.001;
+        
         this.moonLight.castShadow = true;
+        this.moonLight.shadow.mapSize.width = 1024;
+        this.moonLight.shadow.mapSize.height = 1024;
+        this.moonLight.shadow.camera.near = 0.1;
+        this.moonLight.shadow.camera.far = 2000; // Increased far plane
+        this.moonLight.shadow.camera.left = -1000;
+        this.moonLight.shadow.camera.right = 1000;
+        this.moonLight.shadow.camera.top = 1000;
+        this.moonLight.shadow.camera.bottom = -1000;
+        this.moonLight.shadow.bias = -0.001;
+
+        // Add hemisphere light for better ambient illumination
+        this.hemisphereLight = new THREE.HemisphereLight(0xffffff, 0x444444, 1.0); // Increased hemisphere intensity
+        this.scene.add(this.hemisphereLight);
         
         // Add lights to scene
         this.scene.add(this.ambientLight);
@@ -33,33 +59,128 @@ export class TimeSystem {
     }
 
     initSky() {
-        // Create Sky instance
+        // Create sky instance
         this.sky = new Sky();
-        this.sky.scale.setScalar(1125000);  // Increased proportionally for 5000 unit radius (675000 * 5000/3000)
+        this.sky.scale.setScalar(450000);
         this.scene.add(this.sky);
 
-        // Sky shader uniforms for more realistic atmospheric scattering
-        const uniforms = this.sky.material.uniforms;
-        this.skyUniforms = uniforms;
-        
-        // Default sky parameters
-        this.skyParams = {
-            turbidity: 10,
-            rayleigh: 2,
-            mieCoefficient: 0.005,
-            mieDirectionalG: 0.8,
-            elevation: 2,
-            azimuth: 180
-        };
-        
-        // Apply initial parameters
-        uniforms.turbidity.value = this.skyParams.turbidity;
-        uniforms.rayleigh.value = this.skyParams.rayleigh;
-        uniforms.mieCoefficient.value = this.skyParams.mieCoefficient;
-        uniforms.mieDirectionalG.value = this.skyParams.mieDirectionalG;
+        // Set initial sky parameters
+        this.updateSkyParameters();
+    }
 
-        // Initial sun position
-        this.sunPosition = new THREE.Vector3();
+    updateSkyParameters() {
+        const timeOfDay = this.getTimeOfDay();
+        const sunPosition = this.calculateSunPosition();
+        
+        // Update sun position
+        this.sky.material.uniforms.sunPosition.value.copy(sunPosition);
+        
+        // Calculate star visibility based on time of day
+        let starOpacity = 0;
+        if (timeOfDay >= 19 || timeOfDay < 5) {
+            // Full night - stars fully visible
+            starOpacity = 1.0;
+        } else if (timeOfDay >= 5 && timeOfDay < 7) {
+            // Dawn - stars fade out
+            starOpacity = 1.0 - ((timeOfDay - 5) / 2);
+        } else if (timeOfDay >= 17 && timeOfDay < 19) {
+            // Dusk - stars fade in
+            starOpacity = (timeOfDay - 17) / 2;
+        }
+        // Day (7-17) - stars invisible (opacity remains 0)
+        
+        // Update star field opacity
+        if (this.starField) {
+            this.starField.material.uniforms.opacity.value = starOpacity;
+        }
+        
+        // Set sky parameters based on time of day
+        if (timeOfDay >= 5 && timeOfDay < 7) {
+            // Dawn (5-7 AM)
+            const progress = (timeOfDay - 5) / 2;
+            this.sky.material.uniforms.turbidity.value = 5 + progress * 5;
+            this.sky.material.uniforms.rayleigh.value = 1 + progress * 2;
+            this.sky.material.uniforms.mieCoefficient.value = 0.001 + progress * 0.009;
+            this.sky.material.uniforms.mieDirectionalG.value = 0.7 + progress * 0.2;
+        } else if (timeOfDay >= 7 && timeOfDay < 17) {
+            // Day (7 AM - 5 PM)
+            this.sky.material.uniforms.turbidity.value = 2;
+            this.sky.material.uniforms.rayleigh.value = 1;
+            this.sky.material.uniforms.mieCoefficient.value = 0.005;
+            this.sky.material.uniforms.mieDirectionalG.value = 0.8;
+        } else if (timeOfDay >= 17 && timeOfDay < 19) {
+            // Dusk (5-7 PM)
+            const progress = (timeOfDay - 17) / 2;
+            this.sky.material.uniforms.turbidity.value = 15 - progress * 5;
+            this.sky.material.uniforms.rayleigh.value = 3 - progress * 2;
+            this.sky.material.uniforms.mieCoefficient.value = 0.01 + progress * 0.01;
+            this.sky.material.uniforms.mieDirectionalG.value = 0.7 + progress * 0.2;
+        } else {
+            // Night (7 PM - 5 AM)
+            this.sky.material.uniforms.turbidity.value = 20;
+            this.sky.material.uniforms.rayleigh.value = 4;
+            this.sky.material.uniforms.mieCoefficient.value = 0.015;
+            this.sky.material.uniforms.mieDirectionalG.value = 0.6;
+        }
+
+        // Update lighting
+        this.updateLighting(sunPosition);
+    }
+
+    calculateSunPosition() {
+        const phi = THREE.MathUtils.degToRad(90 - this.latitude);
+        const theta = THREE.MathUtils.degToRad(this.longitude + (this.time - 12) * 15); // 15 degrees per hour
+        
+        const sunPosition = new THREE.Vector3();
+        sunPosition.setFromSphericalCoords(1, phi, theta);
+        
+        return sunPosition;
+    }
+
+    updateLighting(sunPosition) {
+        // Update sun light
+        this.sunLight.position.copy(sunPosition).multiplyScalar(2000); // Moved further out
+        const sunIntensity = this.getSunIntensity();
+        this.sunLight.intensity = sunIntensity * 2.0; // Increased base intensity
+        this.sunLight.color.setHSL(0.1, 1, 0.5 + Math.max(0, sunPosition.y) * 0.5);
+
+        // Update moon light
+        const moonPosition = sunPosition.clone().negate().multiplyScalar(2000);
+        this.moonLight.position.copy(moonPosition);
+        this.moonLight.intensity = this.getMoonIntensity() * 1.0; // Increased moon intensity
+
+        // Update hemisphere light based on time of day
+        const timeOfDay = this.getTimeOfDay();
+        if (timeOfDay >= 5 && timeOfDay < 7) {
+            // Dawn
+            this.hemisphereLight.intensity = 0.6 + (timeOfDay - 5) / 2 * 0.4;
+        } else if (timeOfDay >= 7 && timeOfDay < 17) {
+            // Day
+            this.hemisphereLight.intensity = 1.0;
+        } else if (timeOfDay >= 17 && timeOfDay < 19) {
+            // Dusk
+            this.hemisphereLight.intensity = 1.0 - (timeOfDay - 17) / 2 * 0.4;
+        } else {
+            // Night
+            this.hemisphereLight.intensity = 0.5;
+        }
+    }
+
+    getSunIntensity() {
+        const sunPosition = this.calculateSunPosition();
+        return Math.max(0.3, sunPosition.y) * 2.5; // Increased minimum and maximum intensity
+    }
+
+    getMoonIntensity() {
+        const sunPosition = this.calculateSunPosition();
+        return Math.max(0.2, -sunPosition.y) * 1.0; // Increased minimum intensity for night
+    }
+
+    update() {
+        this.time += this.timeScale * 0.0001;
+        if (this.time >= 24) this.time -= 24;
+        
+        this.updateSkyParameters();
     }
 
     createStarField() {
@@ -294,13 +415,19 @@ export class TimeSystem {
     }
     
     createShootingStar() {
+        // Only create shooting stars during night and twilight hours
+        const timeOfDay = this.getTimeOfDay();
+        if (timeOfDay >= 7 && timeOfDay < 17) {
+            return; // Don't create shooting stars during full daylight
+        }
+        
         // Create random start and end positions in the sky dome
         const startTheta = Math.random() * Math.PI * 2;
         const startPhi = Math.random() * Math.PI * 0.3;
         const endTheta = startTheta + (Math.random() * 0.5 - 0.25);
         const endPhi = startPhi + Math.random() * 0.2;
         
-        const radius = 5000;  // Updated from 3000 to 5000
+        const radius = 5000;
         const startPos = new THREE.Vector3(
             radius * Math.sin(startPhi) * Math.cos(startTheta),
             radius * Math.cos(startPhi),
@@ -321,14 +448,14 @@ export class TimeSystem {
             blending: THREE.AdditiveBlending,
             depthWrite: false,
             depthTest: false,
-            linewidth: 2 // Note: This may not work on all systems due to WebGL limitations
+            linewidth: 2
         });
         
         const points = [startPos, endPos];
         geometry.setFromPoints(points);
         
         const mesh = new THREE.Line(geometry, material);
-        mesh.renderOrder = 999; // Ensure shooting stars render last
+        mesh.renderOrder = 999;
         this.scene.add(mesh);
         
         this.shootingStars.push({
@@ -360,53 +487,88 @@ export class TimeSystem {
     updateTime() {
         if (this.isPaused) return;
 
-        // Update time
+        // Update time to current system time
         if (this.isTestMode && this.testTime) {
             this.currentTime = new Date(this.testTime);
         } else {
-            const deltaMs = (1000 / 60) * this.timeScale;
-            this.currentTime = new Date(this.currentTime.getTime() + deltaMs);
+            this.currentTime = new Date(); // Use actual system time
         }
 
         // Get time of day (0-24)
         const timeOfDay = this.getTimeOfDay();
 
+        // Calculate sun position based on time of day
+        const sunAngle = (timeOfDay / 24) * Math.PI * 2; // Convert time to angle (0 to 2π)
+        const sunElevation = Math.sin(sunAngle) * Math.PI / 2; // Elevation angle (-π/2 to π/2)
+        const sunAzimuth = Math.PI; // Fixed azimuth for now (sun moves in a straight line)
+
+        // Calculate sun position in 3D space
+        const radius = 1000; // Distance from scene center
+        this.sunPosition = new THREE.Vector3(
+            radius * Math.cos(sunElevation) * Math.cos(sunAzimuth),
+            radius * Math.sin(sunElevation),
+            radius * Math.cos(sunElevation) * Math.sin(sunAzimuth)
+        );
+
         // Update sky parameters based on time of day
         if (timeOfDay >= 5 && timeOfDay < 7) {
             // Dawn
             const progress = (timeOfDay - 5) / 2;
-            this.skyParams.turbidity = 8 + progress * 2;
-            this.skyParams.rayleigh = 2 + progress * 1.5;
-            this.skyParams.mieCoefficient = 0.002 + progress * 0.008;
-            this.skyParams.elevation = -20 + (progress * 32);
+            this.sky.material.uniforms.turbidity.value = 5 + progress * 5; // Start with clearer atmosphere
+            this.sky.material.uniforms.rayleigh.value = 1 + progress * 2; // Gradually increase Rayleigh scattering
+            this.sky.material.uniforms.mieCoefficient.value = 0.001 + progress * 0.009; // Start with minimal Mie scattering
+            this.sky.material.uniforms.mieDirectionalG.value = 0.7 + progress * 0.2; // Increase forward scattering
         } else if (timeOfDay >= 7 && timeOfDay < 17) {
             // Day
             const noonProgress = Math.sin((timeOfDay - 7) / 10 * Math.PI);
-            this.skyParams.turbidity = 10;
-            this.skyParams.rayleigh = 3.5;
-            this.skyParams.mieCoefficient = 0.01;
-            this.skyParams.elevation = 12 + noonProgress * 20;
+            this.sky.material.uniforms.turbidity.value = 10; // Standard daytime turbidity
+            this.sky.material.uniforms.rayleigh.value = 3.5; // Strong Rayleigh scattering for blue sky
+            this.sky.material.uniforms.mieCoefficient.value = 0.01; // Moderate Mie scattering
+            this.sky.material.uniforms.mieDirectionalG.value = 0.9; // Strong forward scattering
         } else if (timeOfDay >= 17 && timeOfDay < 19) {
             // Dusk
             const progress = (timeOfDay - 17) / 2;
-            this.skyParams.turbidity = 10 - progress * 2;
-            this.skyParams.rayleigh = 3.5 - progress * 1.5;
-            this.skyParams.mieCoefficient = 0.01 + progress * 0.01;
-            this.skyParams.elevation = 12 - (progress * 32);
+            this.sky.material.uniforms.turbidity.value = 10 - progress * 5; // Clearer atmosphere as night approaches
+            this.sky.material.uniforms.rayleigh.value = 3.5 - progress * 2.5; // Reduce Rayleigh scattering
+            this.sky.material.uniforms.mieCoefficient.value = 0.01 + progress * 0.01; // Increase Mie scattering for sunset colors
+            this.sky.material.uniforms.mieDirectionalG.value = 0.9 - progress * 0.2; // Reduce forward scattering
         } else {
             // Night (19:00 - 5:00)
-            this.skyParams.turbidity = 8;
-            this.skyParams.rayleigh = 2;
-            this.skyParams.mieCoefficient = 0.002;
-            this.skyParams.elevation = -20;
+            this.sky.material.uniforms.turbidity.value = 5; // Clear night sky
+            this.sky.material.uniforms.rayleigh.value = 1; // Minimal Rayleigh scattering
+            this.sky.material.uniforms.mieCoefficient.value = 0.001; // Minimal Mie scattering
+            this.sky.material.uniforms.mieDirectionalG.value = 0.7; // Reduced forward scattering
         }
 
-        // Apply updated parameters
-        this.skyUniforms.turbidity.value = this.skyParams.turbidity;
-        this.skyUniforms.rayleigh.value = this.skyParams.rayleigh;
-        this.skyUniforms.mieCoefficient.value = this.skyParams.mieCoefficient;
-        this.skyUniforms.mieDirectionalG.value = this.skyParams.mieDirectionalG;
-        this.skyUniforms.sunPosition.value.copy(this.sunPosition);
+        // Update sun light intensity based on time of day
+        const sunIntensity = Math.max(0, Math.min(1, (timeOfDay - 5) / 2));
+        this.sunLight.intensity = sunIntensity;
+        this.moonLight.intensity = 1 - sunIntensity;
+
+        // Update sun and moon light positions
+        this.sunLight.position.copy(this.sunPosition);
+        this.moonLight.position.copy(this.sunPosition).multiplyScalar(-1); // Moon opposite to sun
+
+        // Update light colors based on time of day
+        if (timeOfDay >= 5 && timeOfDay < 7) {
+            // Dawn colors
+            const progress = (timeOfDay - 5) / 2;
+            this.sunLight.color.setRGB(1, 0.7 + progress * 0.3, 0.5 + progress * 0.5);
+            this.moonLight.color.setRGB(0.5, 0.5, 1);
+        } else if (timeOfDay >= 17 && timeOfDay < 19) {
+            // Dusk colors
+            const progress = (timeOfDay - 17) / 2;
+            this.sunLight.color.setRGB(1, 0.7 - progress * 0.2, 0.5 - progress * 0.3);
+            this.moonLight.color.setRGB(0.5, 0.5, 1);
+        } else if (timeOfDay >= 7 && timeOfDay < 17) {
+            // Day colors
+            this.sunLight.color.setRGB(1, 1, 1);
+            this.moonLight.color.setRGB(0.5, 0.5, 1);
+        } else {
+            // Night colors
+            this.sunLight.color.setRGB(0.5, 0.5, 1);
+            this.moonLight.color.setRGB(0.5, 0.5, 1);
+        }
     }
 
     toggleTestMode() {

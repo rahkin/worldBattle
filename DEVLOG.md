@@ -27,15 +27,22 @@
     - Disabled tone mapping for accurate brightness
     - Enhanced depth handling for consistent rendering
     - Improved performance with optimized settings
-- Enhanced vehicle lighting system:
-  - Standardized rear light implementation across all vehicle types
-  - Improved light positioning and sizing for better visibility
-  - Added consistent glow effects with two-layer system
-  - Removed unnecessary light housings for cleaner aesthetic
-  - Increased emissive intensity to 4.0 for better visibility
-  - Adjusted light strip widths to 0.8 of vehicle width
-  - Centered light positions at 0.4 width offset
-  - Added second layer of glow with 1.4x scale for enhanced effect
+- Enhanced rear lighting system across all vehicles:
+  - Standardized light positioning and dimensions
+  - Implemented consistent glow effects with multiple layers
+  - Optimized light materials for better performance
+  - Removed unnecessary housing for cleaner aesthetics
+  - Added unique lighting characteristics for each vehicle type:
+    - Tank: Military-style dual light strips
+    - Ironclad: Industrial triple light configuration
+    - Junkyard King: Asymmetric scrappy design
+    - Muscle Car: Enhanced custom lighting
+    - Scorpion: Improved wheel visibility
+    - Drone: Energy core and hover effects
+- Documentation updates:
+  - Updated README with latest features
+  - Added detailed vehicle lighting specifications
+  - Improved project structure documentation
 
 ### 2025-04-15
 - Completed comprehensive Day/Night system:

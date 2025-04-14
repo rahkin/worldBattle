@@ -305,16 +305,16 @@ worldBattle/
 - Fixed projectile system integration
 - Enhanced rear lights for all vehicles:
   - Tank: Military-style dual light strips with enhanced glow effects
-  - Ironclad: Triple light strips with heavy armored housing
-  - Junkyard King: Asymmetric light assemblies with rusty frames
-  - Muscle Car: Custom rear lights with larger light strip
+  - Ironclad: Triple light strips with industrial look and intense glow
+  - Junkyard King: Asymmetric light assemblies with scrappy aesthetic
+  - Muscle Car: Custom rear lights with larger light strip and higher emissive intensity
   - Scorpion: Enhanced wheel visibility with custom light positioning
   - Drone: Unique lighting features with energy core and hover engine glow
 - Improved vehicle visual effects:
-  - Enhanced glow effects for all vehicles
-  - Consistent light positioning and sizing
-  - Increased emissive intensity for better visibility
-  - Removed unnecessary light housings for cleaner look
+  - Consistent light positioning across all vehicles
+  - Enhanced glow effects with multiple layers
+  - Optimized light materials and emissive properties
+  - Removed unnecessary housing around lights for cleaner look
 
 ### Getting Started
 

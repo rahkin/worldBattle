@@ -140,6 +140,11 @@ export class Game {
             this.mineDisplay = new MineDisplay();
             this.powerUpDisplay = new PowerUpDisplay(this.sceneManager.scene, this.cameraManager.camera);
 
+            // Initialize mine display with correct count
+            if (this.mineDisplay && this.mineSystem) {
+                this.mineDisplay.updateCount(this.mineSystem.maxMines, this.mineSystem.maxMines);
+            }
+
             // Initialize gameplay systems
             console.log('Initializing gameplay systems...');
             this.vehicleFactory = new VehicleFactory(this.physicsWorld.world, this.sceneManager.scene, this);
@@ -574,6 +579,11 @@ export class Game {
                     
                     // Update last deploy time
                     this.inputState.lastMineDeployTime = currentTime;
+                    
+                    // Update mine display
+                    if (this.mineDisplay) {
+                        this.mineDisplay.updateCount(this.mineSystem.currentMines, this.mineSystem.maxMines);
+                    }
                 }
             }
         }

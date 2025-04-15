@@ -507,3 +507,23 @@ src/
     ├── MuscleCar.js       # Muscle car variant
     └── Scorpion.js        # Scorpion variant
 ``` 
+
+## Testing
+
+### Power-Up System Tests
+The power-up system includes a comprehensive test suite that verifies:
+- Power-up spawning and visual representation
+- Power-up state management and counting
+- Collection simulation and deactivation
+- Proper cleanup and removal
+
+To run the tests:
+1. Start a local server (e.g., `python3 -m http.server 8000`)
+2. Navigate to `http://localhost:8000/src/ecs/test/index.html`
+3. Check the browser console for test results
+
+The test visualization includes:
+- Three power-up types (speed, shield, weapon)
+- Visual effects (glow, rotation, hover)
+- Dynamic camera movement
+- Grid-based reference plane 

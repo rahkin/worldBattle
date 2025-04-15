@@ -237,6 +237,7 @@ export class Game {
     update(deltaTime) {
         // Update time system first to ensure correct lighting for the frame
         this.timeSystem.updateTime();
+        this.timeSystem.update();
         
         // Handle input first
         this.handleInput(deltaTime);

@@ -70,12 +70,12 @@ export class SceneManager {
         this.renderer.shadowMap.enabled = true;
         this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
         this.renderer.autoClear = true;
-        this.renderer.sortObjects = false;
+        this.renderer.sortObjects = true; // Enable sorting for proper transparency
         this.renderer.physicallyCorrectLights = true;
         this.renderer.toneMapping = THREE.ACESFilmicToneMapping; // Use ACES tone mapping for better HDR
         this.renderer.outputEncoding = THREE.sRGBEncoding; // Use sRGB encoding for better color
         
-        // Remove the black clear color - let the sky handle the background
+        // Set clear color to fully transparent
         this.renderer.setClearColor(0x000000, 0);
         
         document.body.appendChild(this.renderer.domElement);

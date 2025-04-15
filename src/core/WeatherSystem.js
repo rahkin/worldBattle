@@ -282,17 +282,32 @@ export class WeatherSystem {
     
     updateFog(intensity) {
         if (this.scene.fog) {
-            this.scene.fog.density = intensity;
-            this.scene.fog.near = 100 + intensity * 400;
-            this.scene.fog.far = 1000 - intensity * 500;
+            const timeOfDay = this.timeSystem.getTimeOfDay();
+            
+            // Adjust fog based on time of day
+            if (timeOfDay >= 4.5 && timeOfDay < 6.0) {
+                // During dawn, reduce fog to allow stars to be visible
+                this.scene.fog.density = intensity * 0.5;
+            } else {
+                this.scene.fog.density = intensity;
+            }
         }
     }
     
     updateCloudOpacity(targetOpacity) {
+        const timeOfDay = this.timeSystem.getTimeOfDay();
+        
+        // Adjust cloud opacity based on time of day
+        if (timeOfDay >= 4.5 && timeOfDay < 6.0) {
+            // During dawn, make clouds more transparent to allow stars to be visible
+            targetOpacity *= 0.5;
+        }
+        
         this.clouds.forEach(cloud => {
             cloud.mesh.traverse(child => {
                 if (child.material) {
                     child.material.opacity = targetOpacity;
+                    child.material.needsUpdate = true;
                 }
             });
         });

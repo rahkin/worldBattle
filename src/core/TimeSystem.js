@@ -75,22 +75,29 @@ export class TimeSystem {
         // Update sun position
         this.sky.material.uniforms.sunPosition.value.copy(sunPosition);
         
-        // Calculate star visibility based on time of day
-        let starOpacity = 0;
-        if (timeOfDay >= 19.5 || timeOfDay < 4.5) {
-            // Full night - stars fully visible
-            starOpacity = 1.0;
-        } else if (timeOfDay >= 4.5 && timeOfDay < 7.5) {
-            // Dawn - stars fade out gradually
-            starOpacity = 1.0 - ((timeOfDay - 4.5) / 3.0);
-        } else if (timeOfDay >= 18 && timeOfDay < 19.5) {
-            // Dusk - stars fade in
-            starOpacity = (timeOfDay - 18) / 1.5;
-        }
-        
-        // Update star field opacity
+        // Handle star field visibility based on time of day
         if (this.starField) {
-            this.starField.material.uniforms.opacity.value = starOpacity;
+            if (timeOfDay >= 19.5 || timeOfDay < 4.5) {
+                // Night - ensure stars are visible
+                if (!this.scene.children.includes(this.starField)) {
+                    this.scene.add(this.starField);
+                }
+            } else if (timeOfDay >= 4.5 && timeOfDay < 6.0) {
+                // Dawn - remove stars
+                if (this.scene.children.includes(this.starField)) {
+                    this.scene.remove(this.starField);
+                }
+            } else if (timeOfDay >= 6.0 && timeOfDay < 18.0) {
+                // Day - ensure stars are not visible
+                if (this.scene.children.includes(this.starField)) {
+                    this.scene.remove(this.starField);
+                }
+            } else if (timeOfDay >= 18.0 && timeOfDay < 19.5) {
+                // Dusk - add stars back
+                if (!this.scene.children.includes(this.starField)) {
+                    this.scene.add(this.starField);
+                }
+            }
         }
         
         // Set sky parameters based on time of day
@@ -199,6 +206,9 @@ export class TimeSystem {
     update() {
         this.time += this.timeScale * 0.0001;
         if (this.time >= 24) this.time -= 24;
+        
+        // Log current time for debugging
+        console.log(`Current game time: ${this.getCurrentTimeString()}, Time of day: ${this.getTimeOfDay().toFixed(2)}`);
         
         this.updateSkyParameters();
     }
@@ -378,6 +388,7 @@ export class TimeSystem {
                     float distanceFactor = clamp(vDistance / 5000.0, 0.0, 1.0);
                     intensity *= mix(0.5, 1.0, distanceFactor);
                     
+                    // Apply opacity to the final color
                     gl_FragColor = vec4(vColor, opacity * intensity);
                 }
             `,

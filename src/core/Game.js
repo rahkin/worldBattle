@@ -8,7 +8,6 @@ import { DebugManager } from './DebugManager.js';
 import { VehicleSelector } from '../ui/VehicleSelector.js';
 import { HealthBar } from '../ui/HealthBar.js';
 import { BaseCar } from '../physics/vehicles/BaseCar.js';
-import { TestTarget } from '../physics/TestTarget.js';
 import * as CANNON from 'cannon-es';
 import * as THREE from 'three';
 import { PowerUpSystem, POWER_UP_TYPES } from '../physics/PowerUpSystem.js';
@@ -25,7 +24,14 @@ export class Game {
     constructor() {
         console.log('Initializing Game...');
         
+        // Core systems first
         this.sceneManager = new SceneManager();
+        this.timeSystem = new TimeSystem(this.sceneManager.scene);
+        
+        // Initialize weather system with OpenWeatherMap API key
+        const openWeatherMapApiKey = '97b4699b10c27374b0041fe4f50ebcd6';
+        this.weatherSystem = new WeatherSystem(this.sceneManager.scene, this.timeSystem, openWeatherMapApiKey);
+        
         this.physicsWorld = new PhysicsWorld();
         this.inputManager = new InputManager();
         this.cameraManager = new CameraManager();
@@ -57,8 +63,6 @@ export class Game {
             recovery: false
         };
 
-        this.testTarget = null;
-
         // Power-up spawn timer (in seconds)
         this.powerUpSpawnTimer = 0;
         this.powerUpSpawnInterval = 5; // 5 seconds for testing
@@ -69,6 +73,7 @@ export class Game {
         
         // Initialize mine system
         this.mineSystem = new MineSystem(this.physicsWorld.world, this.sceneManager.scene);
+        this.mineSystem.game = this; // Add this line to set the game reference
         console.log('Mine system initialized');
 
         // Initialize input state
@@ -90,13 +95,6 @@ export class Game {
 
         // Add collision event listener for power-ups
         this.physicsWorld.world.addEventListener('beginContact', this.handleCollision.bind(this));
-
-        // Initialize time system
-        this.timeSystem = new TimeSystem(this.sceneManager.scene);
-
-        // Initialize weather system with OpenWeatherMap API key
-        const openWeatherMapApiKey = '97b4699b10c27374b0041fe4f50ebcd6'; // Directly use the API key
-        this.weatherSystem = new WeatherSystem(this.sceneManager.scene, this.timeSystem, openWeatherMapApiKey);
 
         // Initialize collision system
         this.collisionSystem = new CollisionSystem(this.physicsWorld.world);
@@ -131,9 +129,10 @@ export class Game {
             console.log('Initializing scene manager...');
             this.sceneManager.init();
 
-            // Remove duplicate time system initialization
-            console.log('Setting up time system...');
-            this.sceneManager.scene.timeSystem = this.timeSystem;
+            // Initialize time and weather systems
+            console.log('Setting up time and weather systems...');
+            await this.timeSystem.init();
+            await this.weatherSystem.init();
 
             console.log('Initializing physics world...');
             this.physicsWorld.init();
@@ -168,15 +167,6 @@ export class Game {
             console.log('Initializing vehicle selector...');
             this.vehicleSelector = new VehicleSelector(this);
             this.vehicleSelector.show();
-
-            // Create test target wall
-            console.log('Creating test target...');
-            this.testTarget = new TestTarget(
-                this.physicsWorld.world,
-                this.sceneManager.scene,
-                this.cameraManager.camera,
-                new CANNON.Vec3(0, 4, -20) // Position the wall in front of the vehicle
-            );
 
             // Set up controls and weather
             this._setupControls();
@@ -235,21 +225,26 @@ export class Game {
     }
 
     update(deltaTime) {
-        // Update time system first to ensure correct lighting for the frame
-        this.timeSystem.updateTime();
-        this.timeSystem.update();
-        
-        // Handle input first
-        this.handleInput(deltaTime);
-        this.inputManager.update();
-        
-        // Update physics
-        this.physicsWorld.world.step(1/60, deltaTime, 3);
-        
-        // Update core systems
-        this.cameraManager.update(deltaTime);
-        this.vehicleFactory.update(deltaTime);
+        // Update time and weather first as they affect the entire scene
+        this.timeSystem.update(deltaTime);
         this.weatherSystem.update(deltaTime);
+
+        // Update physics and game state
+        this.physicsWorld.update(deltaTime);
+        this.inputManager.update();
+        this.cameraManager.update(deltaTime);
+
+        // Handle input for vehicle movement
+        this.handleInput(deltaTime);
+
+        // Update game systems
+        this.powerUpSystem.update(deltaTime);
+        this.vehicleFactory.update(deltaTime);
+        
+        // Update mine system
+        if (this.mineSystem) {
+            this.mineSystem.update(deltaTime);
+        }
         
         // Update debug visualization
         if (this.debugManager) {
@@ -286,35 +281,8 @@ export class Game {
         } else if (this.ammoDisplay) {
             this.ammoDisplay.setVisible(false);
         }
-
-        // Update power-up system and check collisions
-        if (this.powerUpSystem) {
-            this.powerUpSystem.update(deltaTime);
-            
-            // Update power-up spawn timer
-            this.powerUpSpawnTimer += deltaTime;
-            if (this.powerUpSpawnTimer >= this.powerUpSpawnInterval) {
-                this.spawnRandomPowerUp();
-                this.powerUpSpawnTimer = 0;
-            }
-        }
-
-        // Update power-up display
-        if (this.powerUpDisplay) {
-            this.powerUpDisplay.update(deltaTime);
-        }
-
-        // Update mine system
-        if (this.mineSystem) {
-            this.mineSystem.update(deltaTime);
-        }
-
-        // Update test target
-        if (this.testTarget) {
-            this.testTarget.update();
-        }
-
-        // Render scene
+        
+        // Render the scene last
         this.sceneManager.render(this.cameraManager.camera);
     }
 
@@ -380,7 +348,7 @@ export class Game {
         if (this.mineSystem) {
             this.mineSystem.resetMines();
             if (this.mineDisplay) {
-                this.mineDisplay.updateCount(0, this.mineSystem.maxMines);
+                this.mineDisplay.updateCount(this.mineSystem.maxMines, this.mineSystem.maxMines);
             }
         }
 
@@ -719,13 +687,22 @@ export class Game {
         const bodyA = event.bodyA;
         const bodyB = event.bodyB;
 
+        console.log('Collision detected:', {
+            bodyAGroup: bodyA?.collisionFilterGroup,
+            bodyBGroup: bodyB?.collisionFilterGroup,
+            bodyAType: bodyA?.userData?.type,
+            bodyBType: bodyB?.userData?.type,
+            isPowerUpA: bodyA?.collisionFilterGroup === COLLISION_GROUPS.POWER_UP,
+            isPowerUpB: bodyB?.collisionFilterGroup === COLLISION_GROUPS.POWER_UP
+        });
+
         // First check for power-up collisions (group 2)
         let powerUpBody, vehicleBody;
         if (bodyA && bodyB) {
-            if (bodyA.collisionFilterGroup === 2) {
+            if (bodyA.collisionFilterGroup === COLLISION_GROUPS.POWER_UP) {
                 powerUpBody = bodyA;
                 vehicleBody = bodyB;
-            } else if (bodyB.collisionFilterGroup === 2) {
+            } else if (bodyB.collisionFilterGroup === COLLISION_GROUPS.POWER_UP) {
                 powerUpBody = bodyB;
                 vehicleBody = bodyA;
             }
@@ -733,6 +710,12 @@ export class Game {
 
         // Handle power-up collisions first
         if (powerUpBody && vehicleBody && vehicleBody.userData?.vehicle === this.playerVehicle) {
+            console.log('Power-up collision detected:', {
+                powerUpGroup: powerUpBody.collisionFilterGroup,
+                vehicleGroup: vehicleBody.collisionFilterGroup,
+                isPlayerVehicle: vehicleBody.userData?.vehicle === this.playerVehicle
+            });
+
             // Find the power-up ID
             let powerUpId = null;
             for (const [id, powerUp] of this.powerUpSystem.powerUps) {
@@ -743,6 +726,10 @@ export class Game {
             }
 
             if (powerUpId !== null) {
+                console.log('Found matching power-up:', {
+                    powerUpId,
+                    powerUpType: this.powerUpSystem.powerUps.get(powerUpId)?.type?.id
+                });
                 this.handlePowerUpCollision(powerUpId);
                 return; // Exit early after handling power-up collision
             }

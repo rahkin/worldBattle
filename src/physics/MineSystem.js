@@ -449,8 +449,13 @@ export class MineSystem {
     }
 
     resetMines() {
-        this.cleanup();
-        this.currentMines = this.maxMines;
+        this.currentMines = this.maxMines;  // Reset to max mines
+        this.mines.clear();  // Clear any existing mines
+        
+        // Update display if available
+        if (this.game && this.game.mineDisplay) {
+            this.game.mineDisplay.updateCount(this.maxMines, this.maxMines);
+        }
     }
 
     instantResupply(amount) {
@@ -460,12 +465,24 @@ export class MineSystem {
         const spaceLeft = this.maxMines - this.currentMines;
         const minesToAdd = Math.min(amount, spaceLeft);
         this.currentMines += minesToAdd;
+        
+        // Update display if available
+        if (this.game && this.game.mineDisplay) {
+            this.game.mineDisplay.updateCount(this.currentMines, this.maxMines);
+        }
+        
         return minesToAdd;
     }
 
     fullResupply() {
         const oldCount = this.currentMines;
         this.currentMines = this.maxMines;
+        
+        // Update display if available
+        if (this.game && this.game.mineDisplay) {
+            this.game.mineDisplay.updateCount(this.maxMines, this.maxMines);
+        }
+        
         return this.maxMines - oldCount;
     }
 } 

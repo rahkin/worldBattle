@@ -69,10 +69,18 @@ export const POWER_UP_TYPES = {
         color: 0xff6600,
         emissiveColor: 0xff3300,
         apply: (vehicle, game) => {
+            console.log('Attempting to apply MINES_SMALL power-up:', {
+                hasGame: !!game,
+                hasMineSystem: !!(game && game.mineSystem),
+                currentMines: game?.mineSystem?.currentMines,
+                maxMines: game?.mineSystem?.maxMines
+            });
             if (game && game.mineSystem) {
                 const addedMines = game.mineSystem.instantResupply(2);
+                console.log('MINES_SMALL resupply result:', { addedMines });
                 return addedMines > 0;
             }
+            console.warn('Failed to apply MINES_SMALL: No game or mineSystem');
             return false;
         }
     },
@@ -82,10 +90,18 @@ export const POWER_UP_TYPES = {
         color: 0xff3300,
         emissiveColor: 0xff0000,
         apply: (vehicle, game) => {
+            console.log('Attempting to apply MINES_LARGE power-up:', {
+                hasGame: !!game,
+                hasMineSystem: !!(game && game.mineSystem),
+                currentMines: game?.mineSystem?.currentMines,
+                maxMines: game?.mineSystem?.maxMines
+            });
             if (game && game.mineSystem) {
                 const addedMines = game.mineSystem.instantResupply(4);
+                console.log('MINES_LARGE resupply result:', { addedMines });
                 return addedMines > 0;
             }
+            console.warn('Failed to apply MINES_LARGE: No game or mineSystem');
             return false;
         }
     },
@@ -95,10 +111,18 @@ export const POWER_UP_TYPES = {
         color: 0xff0000,
         emissiveColor: 0xff0000,
         apply: (vehicle, game) => {
+            console.log('Attempting to apply MINES_FULL power-up:', {
+                hasGame: !!game,
+                hasMineSystem: !!(game && game.mineSystem),
+                currentMines: game?.mineSystem?.currentMines,
+                maxMines: game?.mineSystem?.maxMines
+            });
             if (game && game.mineSystem) {
                 const addedMines = game.mineSystem.fullResupply();
+                console.log('MINES_FULL resupply result:', { addedMines });
                 return addedMines > 0;
             }
+            console.warn('Failed to apply MINES_FULL: No game or mineSystem');
             return false;
         }
     },
@@ -271,7 +295,7 @@ export class PowerUpSystem {
                     shape: shape,
                     material: this.powerUpMaterial,
                     collisionFilterGroup: COLLISION_GROUPS.POWER_UP,
-                    collisionFilterMask: COLLISION_MASKS.POWER_UP,
+                    collisionFilterMask: COLLISION_GROUPS.VEHICLE,
                     isTrigger: true
                 });
 
@@ -293,7 +317,7 @@ export class PowerUpSystem {
                     shape: shape,
                     material: this.powerUpMaterial,
                     collisionFilterGroup: COLLISION_GROUPS.POWER_UP,
-                    collisionFilterMask: COLLISION_MASKS.POWER_UP,
+                    collisionFilterMask: COLLISION_GROUPS.VEHICLE,
                     isTrigger: true
                 });
                 geometry = new THREE.BoxGeometry(size, size, size);
@@ -305,7 +329,7 @@ export class PowerUpSystem {
                     shape: new CANNON.Sphere(0.5),
                     material: this.powerUpMaterial,
                     collisionFilterGroup: COLLISION_GROUPS.POWER_UP,
-                    collisionFilterMask: COLLISION_MASKS.POWER_UP,
+                    collisionFilterMask: COLLISION_GROUPS.VEHICLE,
                     isTrigger: true
                 });
                 geometry = new THREE.SphereGeometry(0.5, 32, 32);
@@ -313,7 +337,7 @@ export class PowerUpSystem {
 
             // Set collision filters to prevent interaction with mines
             body.collisionFilterGroup = COLLISION_GROUPS.POWER_UP;
-            body.collisionFilterMask = COLLISION_MASKS.POWER_UP;
+            body.collisionFilterMask = COLLISION_GROUPS.VEHICLE;
             body.isTrigger = true;
 
             const material = new THREE.MeshStandardMaterial({

@@ -109,11 +109,19 @@ export class BaseCar {
             collisionFilterMask: -1   // Collide with everything
         });
         chassisBody.addShape(chassisShape);
-        const spawnPos = o.spawnPosition || new CANNON.Vec3(0, 1.2, 0);
+        
+        // Find a safe spawn position
+        let spawnPos;
+        if (o.spawnPosition) {
+            spawnPos = o.spawnPosition;
+        } else {
+            spawnPos = this._findInitialSpawnPosition();
+        }
+        
         chassisBody.position.copy(spawnPos);
-        chassisBody.angularDamping = 0.5;  // Reduced from 0.7
-        chassisBody.linearDamping = 0.1;   // Reduced from 0.2
-        chassisBody.shapeOffsets[0].set(0, -0.1, 0); // Slightly lower center of mass
+        chassisBody.angularDamping = 0.5;
+        chassisBody.linearDamping = 0.1;
+        chassisBody.shapeOffsets[0].set(0, -0.1, 0);
         chassisBody.updateMassProperties();
 
         // Store reference to this vehicle instance in the chassis body's userData
@@ -133,16 +141,16 @@ export class BaseCar {
         const wheelOptions = {
             radius: o.wheelRadius,
             directionLocal: new CANNON.Vec3(0, -1, 0),
-            suspensionStiffness: 50,  // Increased from 30
-            suspensionRestLength: 0.4, // Increased from 0.3
-            frictionSlip: 5,  // Reduced from 30
-            dampingRelaxation: 2.3,
-            dampingCompression: 4.4,
-            maxSuspensionForce: 100000,
-            rollInfluence: 0.01,
-            axleLocal: new CANNON.Vec3(-1, 0, 0),  // Reversed axle direction
+            suspensionStiffness: 45,  // Reduced for smoother ride
+            suspensionRestLength: 0.4,
+            frictionSlip: 8.0,  // Increased for better traction
+            dampingRelaxation: 3.5,  // Increased for better stability
+            dampingCompression: 4.8,  // Increased for better bump handling
+            maxSuspensionForce: 150000,  // Increased for better ground contact
+            rollInfluence: 0.05,  // Increased for better cornering
+            axleLocal: new CANNON.Vec3(-1, 0, 0),
             maxSuspensionTravel: 0.3,
-            customSlidingRotationalSpeed: 30,  // Changed to positive
+            customSlidingRotationalSpeed: -45,  // Adjusted for better wheel response
             useCustomSlidingRotationalSpeed: true
         };
 
@@ -168,12 +176,14 @@ export class BaseCar {
         this._vehicle.wheelInfos.forEach((wheel, i) => {
             wheel.material = this.world.wheelMaterial;
             wheel.useCustomSlidingRotationalSpeed = true;
-            wheel.customSlidingRotationalSpeed = 30;  // Changed to positive
+            wheel.customSlidingRotationalSpeed = -45;  // Match the wheel options
 
             // Additional wheel setup
             const wheelBody = wheel.raycastResult.body;
             if (wheelBody) {
                 wheelBody.material = this.world.wheelMaterial;
+                wheelBody.angularDamping = 0.4;  // Add angular damping for stability
+                wheelBody.linearDamping = 0.2;   // Add linear damping
             }
         });
 
@@ -758,5 +768,85 @@ export class BaseCar {
             this.hasDamageSystem = true;
             console.log('Damage system initialized');
         }
+    }
+
+    _findInitialSpawnPosition() {
+        console.log('Finding safe initial spawn position...');
+        
+        const maxAttempts = 10;
+        const spawnHeight = 10;
+        const minClearance = 3;
+        const searchRadius = 20;
+        
+        // Try positions in a spiral pattern
+        for (let i = 0; i < maxAttempts; i++) {
+            // Calculate position in spiral pattern
+            const angle = (i / maxAttempts) * Math.PI * 2;
+            const radius = (i / maxAttempts) * searchRadius;
+            const x = Math.cos(angle) * radius;
+            const z = Math.sin(angle) * radius;
+            
+            // Create raycast from above
+            const from = new CANNON.Vec3(x, spawnHeight, z);
+            const to = new CANNON.Vec3(x, -1, z);
+            const ray = new CANNON.Ray(from, to);
+            const result = new CANNON.RaycastResult();
+            
+            ray.intersectWorld(this.world, { mode: CANNON.Ray.CLOSEST, result });
+            
+            if (result.hasHit) {
+                // Check if there's enough clearance above the hit point
+                const hitY = result.hitPointWorld.y;
+                
+                // Additional safety check - cast a wider ray to check for objects
+                const isClear = this._checkAreaClearance(
+                    new CANNON.Vec3(x, hitY + minClearance, z),
+                    this.options.width * 2
+                );
+                
+                if (isClear) {
+                    console.log('Found clear spawn position at:', [x, hitY + minClearance, z]);
+                    return new CANNON.Vec3(x, hitY + minClearance, z);
+                }
+            }
+        }
+        
+        // Fallback to a high position if no clear spot found
+        console.warn('No clear spawn position found, using fallback position');
+        return new CANNON.Vec3(0, spawnHeight, 0);
+    }
+
+    _checkAreaClearance(position, radius) {
+        // Cast rays in a grid pattern to check for objects
+        const checkPoints = [
+            { x: -radius, z: -radius },
+            { x: -radius, z: radius },
+            { x: radius, z: -radius },
+            { x: radius, z: radius },
+            { x: 0, z: 0 }
+        ];
+        
+        for (const point of checkPoints) {
+            const from = new CANNON.Vec3(
+                position.x + point.x,
+                position.y + 2,
+                position.z + point.z
+            );
+            const to = new CANNON.Vec3(
+                position.x + point.x,
+                position.y - 2,
+                position.z + point.z
+            );
+            
+            const ray = new CANNON.Ray(from, to);
+            const result = new CANNON.RaycastResult();
+            ray.intersectWorld(this.world, { mode: CANNON.Ray.ANY, result });
+            
+            if (result.hasHit) {
+                return false; // Area is not clear
+            }
+        }
+        
+        return true; // Area is clear
     }
 } 

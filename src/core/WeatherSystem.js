@@ -23,6 +23,40 @@ export class WeatherSystem {
         this.userLocation = null;
         this.locationError = null;
         
+        // Cloud materials for different times of day
+        this.cloudMaterials = {
+            day: new THREE.MeshPhongMaterial({
+                color: 0xffffff,
+                transparent: true,
+                opacity: 0.8,
+                flatShading: true
+            }),
+            dawn: new THREE.MeshPhongMaterial({
+                color: 0xffb74d,
+                transparent: true,
+                opacity: 0.8,
+                flatShading: true,
+                emissive: 0x552211,
+                emissiveIntensity: 0.2
+            }),
+            dusk: new THREE.MeshPhongMaterial({
+                color: 0xff9800,
+                transparent: true,
+                opacity: 0.8,
+                flatShading: true,
+                emissive: 0x552211,
+                emissiveIntensity: 0.2
+            }),
+            night: new THREE.MeshPhongMaterial({
+                color: 0x555555,
+                transparent: true,
+                opacity: 0.6,
+                flatShading: true,
+                emissive: 0x222222,
+                emissiveIntensity: 0.1
+            })
+        };
+        
         // Cloud system
         this.clouds = new Map();
         this.cloudCount = 50;
@@ -73,30 +107,35 @@ export class WeatherSystem {
         }
     }
     
+    getCloudMaterial() {
+        const timeOfDay = this.timeSystem.getTimeOfDay();
+        
+        if (timeOfDay >= 5 && timeOfDay < 7) { // Dawn
+            return this.cloudMaterials.dawn;
+        } else if (timeOfDay >= 7 && timeOfDay < 17) { // Day
+            return this.cloudMaterials.day;
+        } else if (timeOfDay >= 17 && timeOfDay < 19) { // Dusk
+            return this.cloudMaterials.dusk;
+        } else { // Night
+            return this.cloudMaterials.night;
+        }
+    }
+    
     createCloud() {
-        // Create a group for the cloud parts
         const cloudGroup = new THREE.Group();
+        const material = this.getCloudMaterial();
         
-        // Cloud material with soft edges
-        const cloudMaterial = new THREE.MeshPhongMaterial({
-            color: 0xffffff,
-            transparent: true,
-            opacity: 0.8,
-            flatShading: true
-        });
-        
-        // Create multiple spheres for one cloud with smaller sizes
+        // Create multiple spheres for one cloud
         const sphereCount = 5 + Math.floor(Math.random() * 5);
         for (let i = 0; i < sphereCount; i++) {
-            const size = 20 + Math.random() * 30;  // Reduced from 40-100 to 20-50
+            const size = 20 + Math.random() * 30;
             const geometry = new THREE.SphereGeometry(size, 8, 8);
-            const cloudPart = new THREE.Mesh(geometry, cloudMaterial);
+            const cloudPart = new THREE.Mesh(geometry, material);
             
-            // Position each sphere slightly offset
             cloudPart.position.set(
-                (Math.random() - 0.5) * 40,   // Reduced from 80 to 40
-                (Math.random() - 0.5) * 20,   // Reduced from 40 to 20
-                (Math.random() - 0.5) * 40    // Reduced from 80 to 40
+                (Math.random() - 0.5) * 40,
+                (Math.random() - 0.5) * 20,
+                (Math.random() - 0.5) * 40
             );
             
             cloudGroup.add(cloudPart);
@@ -238,38 +277,6 @@ export class WeatherSystem {
         }
     }
     
-    createCloud(color = 0xffffff) {
-        // Create a group for the cloud parts
-        const cloudGroup = new THREE.Group();
-        
-        // Cloud material with soft edges
-        const cloudMaterial = new THREE.MeshPhongMaterial({
-            color: color,
-            transparent: true,
-            opacity: 0.8,
-            flatShading: true
-        });
-        
-        // Create multiple spheres for one cloud with varied sizes
-        const sphereCount = 5 + Math.floor(Math.random() * 5);
-        for (let i = 0; i < sphereCount; i++) {
-            const size = 20 + Math.random() * 30;
-            const geometry = new THREE.SphereGeometry(size, 8, 8);
-            const cloudPart = new THREE.Mesh(geometry, cloudMaterial);
-            
-            // Position each sphere slightly offset
-            cloudPart.position.set(
-                (Math.random() - 0.5) * 40,
-                (Math.random() - 0.5) * 20,
-                (Math.random() - 0.5) * 40
-            );
-            
-            cloudGroup.add(cloudPart);
-        }
-        
-        return cloudGroup;
-    }
-    
     darkendClouds() {
         this.clouds.forEach(cloud => {
             cloud.mesh.traverse(child => {
@@ -405,20 +412,25 @@ export class WeatherSystem {
             );
         }
 
+        // Update cloud materials based on time of day
+        const material = this.getCloudMaterial();
+        this.clouds.forEach(cloud => {
+            cloud.mesh.children.forEach(part => {
+                part.material = material;
+            });
+        });
+        
         // Update cloud positions
         this.clouds.forEach(cloud => {
-            cloud.mesh.position.add(
-                cloud.direction.clone().multiplyScalar(cloud.speed * deltaTime)
-            );
+            cloud.mesh.position.x += cloud.direction.x * cloud.speed;
+            cloud.mesh.position.z += cloud.direction.z * cloud.speed;
             
             // Wrap clouds around when they go too far
-            const maxDistance = 1500;
-            if (cloud.mesh.position.length() > maxDistance) {
-                const normalized = cloud.mesh.position.clone().normalize();
-                cloud.mesh.position.copy(
-                    normalized.multiplyScalar(-maxDistance)
-                );
-            }
+            const limit = 1000;
+            if (cloud.mesh.position.x > limit) cloud.mesh.position.x = -limit;
+            if (cloud.mesh.position.x < -limit) cloud.mesh.position.x = limit;
+            if (cloud.mesh.position.z > limit) cloud.mesh.position.z = -limit;
+            if (cloud.mesh.position.z < -limit) cloud.mesh.position.z = limit;
         });
         
         // Update rain system
@@ -467,24 +479,17 @@ export class WeatherSystem {
             }
         }
         
-        // Update cloud appearance based on time of day
+        // Update fog color based on time of day
         const timeOfDay = this.timeSystem.getTimeOfDay();
-        const isDaytime = timeOfDay > 6 && timeOfDay < 18;
-        const isSunset = timeOfDay >= 18 && timeOfDay < 20;
-        
-        this.clouds.forEach(cloud => {
-            cloud.mesh.traverse(child => {
-                if (child.material) {
-                    if (isDaytime) {
-                        child.material.emissive.setHex(0x000000);
-                    } else if (isSunset) {
-                        child.material.emissive.setHex(0x331100);
-                    } else {
-                        child.material.emissive.setHex(0x111111);
-                    }
-                }
-            });
-        });
+        if (timeOfDay >= 5 && timeOfDay < 7) { // Dawn
+            this.scene.fog.color.setHex(0xffb74d);
+        } else if (timeOfDay >= 7 && timeOfDay < 17) { // Day
+            this.scene.fog.color.setHex(0xcfcfcf);
+        } else if (timeOfDay >= 17 && timeOfDay < 19) { // Dusk
+            this.scene.fog.color.setHex(0xff9800);
+        } else { // Night
+            this.scene.fog.color.setHex(0x222222);
+        }
     }
 
     getFrictionModifier() {

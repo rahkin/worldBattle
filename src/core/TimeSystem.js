@@ -5,26 +5,27 @@ export class TimeSystem {
     constructor(scene) {
         this.scene = scene;
         this.time = 6; // Start at sunrise (6 AM)
-        this.timeScale = 1.0;
-        this.latitude = 0;
-        this.longitude = 0;
-        this.currentTime = new Date(); // This will automatically use local time
-        this.timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone; // Get local timezone
+        this.timeScale = 1.0; // 1 minute real time = 1 hour game time
+        this.latitude = 14.5995; // Manila latitude
+        this.longitude = 120.9842; // Manila longitude
+        this.currentTime = new Date();
+        this.timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
         this.isPaused = false;
         this.isTestMode = false;
         this.testTime = null;
+        this.lastUpdate = Date.now();
         
-        // Lighting setup with enhanced parameters
-        this.ambientLight = new THREE.AmbientLight(0xffffff, 0.5); // Increased ambient intensity
-        this.sunLight = new THREE.DirectionalLight(0xffffff, 2.0); // Increased sun intensity
-        this.moonLight = new THREE.DirectionalLight(0x7f7fff, 0.8); // Increased moon intensity
+        // Lighting setup
+        this.ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+        this.sunLight = new THREE.DirectionalLight(0xffffff, 2.0);
+        this.moonLight = new THREE.DirectionalLight(0x7f7fff, 0.8);
         
-        // Configure lights with enhanced shadow parameters
+        // Configure lights
         this.sunLight.castShadow = true;
         this.sunLight.shadow.mapSize.width = 2048;
         this.sunLight.shadow.mapSize.height = 2048;
         this.sunLight.shadow.camera.near = 0.1;
-        this.sunLight.shadow.camera.far = 2000; // Increased far plane
+        this.sunLight.shadow.camera.far = 2000;
         this.sunLight.shadow.camera.left = -1000;
         this.sunLight.shadow.camera.right = 1000;
         this.sunLight.shadow.camera.top = 1000;
@@ -35,26 +36,21 @@ export class TimeSystem {
         this.moonLight.shadow.mapSize.width = 1024;
         this.moonLight.shadow.mapSize.height = 1024;
         this.moonLight.shadow.camera.near = 0.1;
-        this.moonLight.shadow.camera.far = 2000; // Increased far plane
+        this.moonLight.shadow.camera.far = 2000;
         this.moonLight.shadow.camera.left = -1000;
         this.moonLight.shadow.camera.right = 1000;
         this.moonLight.shadow.camera.top = 1000;
         this.moonLight.shadow.camera.bottom = -1000;
         this.moonLight.shadow.bias = -0.001;
 
-        // Add hemisphere light for better ambient illumination
-        this.hemisphereLight = new THREE.HemisphereLight(0xffffff, 0x444444, 1.0); // Increased hemisphere intensity
+        this.hemisphereLight = new THREE.HemisphereLight(0xffffff, 0x444444, 1.0);
         this.scene.add(this.hemisphereLight);
         
-        // Add lights to scene
         this.scene.add(this.ambientLight);
         this.scene.add(this.sunLight);
         this.scene.add(this.moonLight);
         
-        // Initialize sky
         this.initSky();
-        
-        // Create star field
         this.createStarField();
     }
 
@@ -141,11 +137,23 @@ export class TimeSystem {
     }
 
     calculateSunPosition() {
-        const phi = THREE.MathUtils.degToRad(90 - this.latitude);
-        const theta = THREE.MathUtils.degToRad(this.longitude + (this.time - 12) * 15); // 15 degrees per hour
+        const timeOfDay = this.getTimeOfDay();
         
+        // Convert time to angle (24 hours = 360 degrees)
+        const timeAngle = ((timeOfDay - 6) * 15) % 360; // Offset by 6 hours so noon is at peak
+        
+        // Convert to radians
+        const theta = THREE.MathUtils.degToRad(timeAngle);
+        const phi = THREE.MathUtils.degToRad(90 - this.latitude);
+        
+        // Calculate sun position
         const sunPosition = new THREE.Vector3();
         sunPosition.setFromSphericalCoords(1, phi, theta);
+        
+        // Rotate based on latitude
+        const latitudeRotation = new THREE.Matrix4();
+        latitudeRotation.makeRotationX(THREE.MathUtils.degToRad(this.latitude));
+        sunPosition.applyMatrix4(latitudeRotation);
         
         return sunPosition;
     }
@@ -203,14 +211,25 @@ export class TimeSystem {
         return Math.max(0.2, -sunPosition.y) * 1.0; // Increased minimum intensity for night
     }
 
-    update() {
-        this.time += this.timeScale * 0.0001;
-        if (this.time >= 24) this.time -= 24;
+    update(deltaTime) {
+        if (this.isPaused) return;
         
-        // Log current time for debugging
-        console.log(`Current game time: ${this.getCurrentTimeString()}, Time of day: ${this.getTimeOfDay().toFixed(2)}`);
+        const now = Date.now();
+        const realTimeDelta = (now - this.lastUpdate) / 1000; // Convert to seconds
+        this.lastUpdate = now;
         
+        // Update time (1 real second = 1 minute game time by default)
+        if (!this.isTestMode) {
+            this.time = (this.time + (realTimeDelta * this.timeScale)) % 24;
+        }
+        
+        // Update sky and lighting
         this.updateSkyParameters();
+        
+        // Animate stars if visible
+        if (this.starField && this.scene.children.includes(this.starField)) {
+            this.animateStars();
+        }
     }
 
     createStarField() {

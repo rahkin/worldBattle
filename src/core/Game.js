@@ -22,17 +22,17 @@ export class Game {
     }
 
     initTestEnvironment() {
+        // Create a basic scene
         this.scene = new THREE.Scene();
-        this.camera = {
-            position: new THREE.Vector3(),
-            lookAt: () => {},
-            aspect: 1,
-            updateProjectionMatrix: () => {}
-        };
+        
+        // Create a basic camera with mock methods
+        this.camera = new THREE.PerspectiveCamera(75, 1, 0.1, 1000);
+        
+        // Create a mock renderer
         this.renderer = {
             setSize: () => {},
             render: () => {},
-            domElement: {},
+            domElement: { style: {} },
             dispose: () => {}
         };
     }

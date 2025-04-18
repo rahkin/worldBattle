@@ -1,43 +1,62 @@
 export class HealthBar {
     constructor() {
-        this.element = document.createElement('div');
-        this.element.id = 'health-bar';
-        this.element.className = 'hud-element';
-        this.element.innerHTML = `
-            <div class="health-bar-container">
-                <div class="health-bar-fill"></div>
-                <div class="health-text">100%</div>
-            </div>
-        `;
-        document.getElementById('game-ui').appendChild(this.element);
+        this.maxHealth = 100;
+        this.currentHealth = 100;
+        this.element = null;
+        this.bar = null;
     }
 
-    update(currentHealth, maxHealth) {
-        const percentage = (currentHealth / maxHealth) * 100;
-        const fillElement = this.element.querySelector('.health-bar-fill');
-        const textElement = this.element.querySelector('.health-text');
-        
-        fillElement.style.width = `${percentage}%`;
-        textElement.textContent = `${Math.round(percentage)}%`;
+    init() {
+        // Create container
+        this.element = document.createElement('div');
+        this.element.className = 'health-bar-container';
+        this.element.style.cssText = `
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            width: 200px;
+            height: 20px;
+            background: rgba(0, 0, 0, 0.5);
+            border: 2px solid #fff;
+            border-radius: 10px;
+            overflow: hidden;
+        `;
 
-        // Color transitions based on health percentage
-        let color;
-        if (percentage > 75) {
-            color = '#2ecc71'; // Healthy green
-        } else if (percentage > 50) {
-            color = '#f1c40f'; // Warning yellow
-        } else if (percentage > 25) {
-            color = '#e67e22'; // Orange
-        } else {
-            color = '#e74c3c'; // Critical red
+        // Create health bar
+        this.bar = document.createElement('div');
+        this.bar.className = 'health-bar';
+        this.bar.style.cssText = `
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(to right, #ff0000, #00ff00);
+            transition: width 0.3s ease-in-out;
+        `;
+
+        this.element.appendChild(this.bar);
+
+        // Add to UI container
+        const uiContainer = document.getElementById('ui-container');
+        if (uiContainer) {
+            uiContainer.appendChild(this.element);
         }
+    }
+
+    update(currentHealth, maxHealth = 100) {
+        if (!this.bar) return;
         
-        fillElement.style.backgroundColor = color;
-        // Add glow effect for low health
-        if (percentage <= 25) {
-            fillElement.style.boxShadow = `0 0 10px ${color}`;
+        this.currentHealth = currentHealth;
+        this.maxHealth = maxHealth;
+        
+        const healthPercentage = (currentHealth / maxHealth) * 100;
+        this.bar.style.width = `${healthPercentage}%`;
+        
+        // Update color based on health percentage
+        if (healthPercentage > 60) {
+            this.bar.style.background = '#00ff00'; // Green
+        } else if (healthPercentage > 30) {
+            this.bar.style.background = '#ffff00'; // Yellow
         } else {
-            fillElement.style.boxShadow = 'none';
+            this.bar.style.background = '#ff0000'; // Red
         }
     }
 
@@ -67,5 +86,7 @@ export class HealthBar {
         if (this.element && this.element.parentNode) {
             this.element.parentNode.removeChild(this.element);
         }
+        this.element = null;
+        this.bar = null;
     }
 } 

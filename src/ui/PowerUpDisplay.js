@@ -1,206 +1,93 @@
 import * as THREE from 'three';
 
 export class PowerUpDisplay {
-    constructor(scene, camera) {
-        this.scene = scene;
-        this.camera = camera;
-        this.container = document.createElement('div');
-        this.container.id = 'power-up-display';
-        this.container.style.position = 'fixed';
-        this.container.style.top = '20px';
-        this.container.style.right = '20px';
-        this.container.style.display = 'flex';
-        this.container.style.flexDirection = 'column';
-        this.container.style.gap = '10px';
-        this.container.style.zIndex = '1000';
-        document.body.appendChild(this.container);
-
-        // Map to store active power-ups and their timers
+    constructor() {
+        this.element = null;
         this.activePowerUps = new Map();
+    }
 
-        // Style for power-up items
-        const style = document.createElement('style');
-        style.textContent = `
-            .power-up-item {
-                background: rgba(0, 0, 0, 0.7);
-                color: white;
+    init() {
+        // Create container
+        this.element = document.createElement('div');
+        this.element.className = 'powerup-display';
+        this.element.style.cssText = `
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        `;
+
+        // Add to UI container
+        const uiContainer = document.getElementById('ui-container');
+        if (uiContainer) {
+            uiContainer.appendChild(this.element);
+        }
+    }
+
+    update(activePowerUps) {
+        if (!this.element) return;
+
+        // Clear existing power-ups
+        this.element.innerHTML = '';
+
+        // Add each active power-up
+        activePowerUps.forEach((powerUp, id) => {
+            const powerUpElement = document.createElement('div');
+            powerUpElement.className = 'powerup-item';
+            powerUpElement.style.cssText = `
                 padding: 10px;
+                background: rgba(0, 0, 0, 0.5);
+                border: 2px solid #fff;
                 border-radius: 5px;
+                color: #fff;
+                font-family: Arial, sans-serif;
+                font-size: 16px;
                 display: flex;
                 align-items: center;
                 gap: 10px;
-                font-family: Arial, sans-serif;
-                min-width: 150px;
-                position: relative;
+            `;
+
+            // Icon based on power-up type
+            const icon = document.createElement('span');
+            switch (powerUp.type) {
+                case 'speed':
+                    icon.innerHTML = '⚡';
+                    powerUpElement.style.borderColor = '#ffff00';
+                    break;
+                case 'damage':
+                    icon.innerHTML = '💥';
+                    powerUpElement.style.borderColor = '#ff0000';
+                    break;
+                case 'defense':
+                    icon.innerHTML = '🛡️';
+                    powerUpElement.style.borderColor = '#0000ff';
+                    break;
+                case 'ammo':
+                    icon.innerHTML = '🎯';
+                    powerUpElement.style.borderColor = '#00ff00';
+                    break;
+                default:
+                    icon.innerHTML = '⭐';
             }
-            .power-up-icon {
-                width: 24px;
-                height: 24px;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                border-radius: 50%;
-            }
-            .power-up-timer {
-                margin-left: auto;
-                font-weight: bold;
-            }
-            .power-up-progress {
-                position: absolute;
-                bottom: 0;
-                left: 0;
-                height: 3px;
-                background: #4CAF50;
-                transition: width 0.1s linear;
-            }
-        `;
-        document.head.appendChild(style);
-    }
+            icon.style.fontSize = '24px';
 
-    addPowerUp(type, duration) {
-        // Remove existing power-up of the same type if it exists
-        if (this.activePowerUps.has(type)) {
-            this.removePowerUp(type);
-        }
+            // Timer
+            const timer = document.createElement('span');
+            timer.textContent = Math.ceil(powerUp.remainingTime);
 
-        // Create power-up display element
-        const element = document.createElement('div');
-        element.className = 'power-up-item';
-        element.dataset.type = type;
-
-        // Create icon
-        const icon = document.createElement('div');
-        icon.className = 'power-up-icon';
-        icon.style.background = this.getPowerUpColor(type);
-        icon.textContent = this.getPowerUpIcon(type);
-
-        // Create label
-        const label = document.createElement('span');
-        label.textContent = this.getPowerUpLabel(type);
-
-        // Create timer
-        const timer = document.createElement('span');
-        timer.className = 'power-up-timer';
-
-        // Create progress bar
-        const progress = document.createElement('div');
-        progress.className = 'power-up-progress';
-        progress.style.width = '100%';
-
-        // Assemble elements
-        element.appendChild(icon);
-        element.appendChild(label);
-        element.appendChild(timer);
-        element.appendChild(progress);
-        this.container.appendChild(element);
-
-        // Store power-up info
-        const startTime = Date.now();
-        const powerUpInfo = {
-            element,
-            timer,
-            progress,
-            startTime,
-            duration,
-            updateInterval: setInterval(() => {
-                const elapsed = Date.now() - startTime;
-                const remaining = Math.max(0, duration - elapsed);
-                const percent = (remaining / duration) * 100;
-
-                timer.textContent = (remaining / 1000).toFixed(1) + 's';
-                progress.style.width = percent + '%';
-
-                if (remaining <= 0) {
-                    this.removePowerUp(type);
-                }
-            }, 100)
-        };
-
-        this.activePowerUps.set(type, powerUpInfo);
-    }
-
-    removePowerUp(type) {
-        const powerUpInfo = this.activePowerUps.get(type);
-        if (powerUpInfo) {
-            clearInterval(powerUpInfo.updateInterval);
-            powerUpInfo.element.remove();
-            this.activePowerUps.delete(type);
-        }
-    }
-
-    getPowerUpColor(type) {
-        const colors = {
-            health: '#4CAF50',
-            speed: '#2196F3',
-            weapon: '#F44336',
-            shield: '#9C27B0',
-            ammo: '#FF9800',
-            overcharge: '#FF00FF'
-        };
-        return colors[type] || '#FFFFFF';
-    }
-
-    getPowerUpIcon(type) {
-        const icons = {
-            health: '❤️',
-            speed: '⚡',
-            weapon: '🎯',
-            shield: '🛡️',
-            ammo: '🔫',
-            overcharge: '💥'
-        };
-        return icons[type] || '✨';
-    }
-
-    getPowerUpLabel(type) {
-        const labels = {
-            health: 'Health',
-            speed: 'Speed Boost',
-            weapon: 'Weapon Overcharge',
-            shield: 'Shield',
-            ammo: 'Ammo',
-            overcharge: 'Overcharge'
-        };
-        return labels[type] || type;
-    }
-
-    update(deltaTime) {
-        // Update all active power-ups
-        this.activePowerUps.forEach((powerUpInfo, type) => {
-            const elapsed = Date.now() - powerUpInfo.startTime;
-            const remaining = Math.max(0, powerUpInfo.duration - elapsed);
-            const percent = (remaining / powerUpInfo.duration) * 100;
-
-            powerUpInfo.timer.textContent = (remaining / 1000).toFixed(1) + 's';
-            powerUpInfo.progress.style.width = percent + '%';
-
-            if (remaining <= 0) {
-                this.removePowerUp(type);
-            }
+            powerUpElement.appendChild(icon);
+            powerUpElement.appendChild(timer);
+            this.element.appendChild(powerUpElement);
         });
-    }
-
-    clear() {
-        console.log('Clearing power-up display...');
-        
-        // Remove all active power-ups
-        this.activePowerUps.forEach((powerUpInfo, type) => {
-            this.removePowerUp(type);
-        });
-        
-        // Clear the power-ups map
-        this.activePowerUps.clear();
-        
-        console.log('Power-up display cleared');
     }
 
     cleanup() {
-        // Clear all intervals
-        for (const [type, info] of this.activePowerUps) {
-            clearInterval(info.updateInterval);
-            info.element.remove();
+        if (this.element && this.element.parentNode) {
+            this.element.parentNode.removeChild(this.element);
         }
+        this.element = null;
         this.activePowerUps.clear();
-        this.container.remove();
     }
 } 

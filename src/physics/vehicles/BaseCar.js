@@ -624,49 +624,36 @@ export class BaseCar {
     }
 
     deployMine() {
-        // Check cooldown, mine limit, and looking back state
-        if (this.mineDeployTimer > 0) {
-            console.log('Mine deployment on cooldown');
-            return false;
-        }
+        if (!this.game || !this.game.mineSystem) return;
         
-        if (this.mines.size >= this.maxMines) {
-            console.log('Maximum mines deployed');
-            return false;
-        }
+        // Check if we can deploy a mine
+        if (this.mines.size >= this.maxMines) return;
         
-        if (!this.isLookingBack) {
-            console.log('Cannot deploy mine: not looking back');
-            return false;
-        }
-
-        // Calculate spawn position behind vehicle
-        const direction = new THREE.Vector3();
-        this._vehicle.chassisBody.quaternion.vmult(new CANNON.Vec3(0, 0, 1), direction);
-        const spawnPosition = new CANNON.Vec3(
-            this._vehicle.chassisBody.position.x - direction.x * 3,
-            this._vehicle.chassisBody.position.y - 0.5, // Slightly below vehicle
-            this._vehicle.chassisBody.position.z - direction.z * 3
+        // Get vehicle position and orientation
+        const position = this._vehicle.chassisBody.position;
+        const quaternion = this._vehicle.chassisBody.quaternion;
+        
+        // Calculate backward direction vector
+        const backward = new THREE.Vector3(0, 0, 1);
+        backward.applyQuaternion(new THREE.Quaternion(
+            quaternion.x,
+            quaternion.y,
+            quaternion.z,
+            quaternion.w
+        ));
+        
+        // Calculate mine position (behind the vehicle)
+        const minePosition = new CANNON.Vec3(
+            position.x - backward.x * 2,
+            position.y + 0.5,
+            position.z - backward.z * 2
         );
-
-        // Create new mine
-        const mine = new Mine(this.world, this.scene, spawnPosition, {
-            damage: 75,
-            radius: 5,
-            lifetime: 30000 // 30 seconds
-        });
-
-        // Add to mines set and start cooldown
-        this.mines.add(mine);
-        this.mineDeployTimer = this.mineDeployCooldown;
-
-        console.log('Mine deployed:', {
-            position: spawnPosition,
-            activeMines: this.mines.size,
-            cooldown: this.mineDeployCooldown
-        });
-
-        return true;
+        
+        // Create mine
+        const mine = this.game.mineSystem.createMine(minePosition);
+        if (mine) {
+            this.mines.add(mine);
+        }
     }
 
     setLookingBack(isLooking) {
@@ -848,5 +835,65 @@ export class BaseCar {
         }
         
         return true; // Area is clear
+    }
+
+    applyEngineForce(force) {
+        if (!this._vehicle) return;
+        
+        // Apply force to all wheels
+        for (let i = 0; i < this._vehicle.wheelInfos.length; i++) {
+            this._vehicle.applyEngineForce(force, i);
+        }
+    }
+
+    applyBrakeForce(force) {
+        if (!this._vehicle) return;
+        
+        // Apply brake to all wheels
+        for (let i = 0; i < this._vehicle.wheelInfos.length; i++) {
+            this._vehicle.setBrake(force, i);
+        }
+    }
+
+    applySteering(steering) {
+        if (!this._vehicle) return;
+        
+        // Apply steering to front wheels only
+        for (let i = 0; i < 2; i++) {
+            this._vehicle.setSteeringValue(steering, i);
+        }
+    }
+
+    activateBoost() {
+        if (!this._vehicle) return;
+        
+        // Apply boost force to all wheels
+        const boostForce = 2200; // Same as in original code
+        for (let i = 0; i < this._vehicle.wheelInfos.length; i++) {
+            this._vehicle.applyEngineForce(boostForce, i);
+        }
+    }
+
+    attemptRecovery() {
+        if (!this.canRecover) return;
+        
+        // Get current position
+        const currentPosition = this._vehicle.chassisBody.position.clone();
+        
+        // Find safe position
+        const safePosition = this._findSafePosition(currentPosition);
+        if (safePosition) {
+            // Teleport to safe position
+            this._vehicle.chassisBody.position.copy(safePosition);
+            this._vehicle.chassisBody.velocity.set(0, 0, 0);
+            this._vehicle.chassisBody.angularVelocity.set(0, 0, 0);
+            
+            // Apply recovery cooldown
+            this.canRecover = false;
+            this.recoveryCooldown = this.recoveryCooldownTime;
+            
+            // Apply small damage for recovery
+            this.takeDamage(15);
+        }
     }
 } 

@@ -9,10 +9,26 @@ export class CameraController {
 
         // Camera offsets
         this.offsetThirdPerson = new THREE.Vector3(0, 3, 6);
-        this.offsetThirdPersonRear = new THREE.Vector3(0, 3, -6);  // New rear offset for third person
+        this.offsetThirdPersonRear = new THREE.Vector3(0, 3, -6);
         this.offsetFirstPerson = new THREE.Vector3(0, 1.2, 0.2);
         this.tempVec = new THREE.Vector3();
         this.tempQuat = new THREE.Quaternion();
+        
+        // Smoothing
+        this.currentRotation = new THREE.Quaternion();
+        this.targetRotation = new THREE.Quaternion();
+        this.rotationSpeed = 5;
+        
+        // Spring-damper system
+        this.springStrength = 25;
+        this.damperStrength = 5;
+        this.velocity = new THREE.Vector3();
+        
+        // Collision detection
+        this.raycaster = new THREE.Raycaster();
+        this.minDistance = 1;
+        this.maxDistance = 6;
+        this.collisionLayers = ['terrain', 'obstacles'];
 
         // FOV settings
         this.baseFov = camera.fov;
@@ -30,7 +46,10 @@ export class CameraController {
         this.rearViewRotationSpeed = 15;
         this.currentHeadRotation = 0;
         this.targetHeadRotation = 0;
-        this.cameraTransitionSpeed = 8;  // Speed for third person camera movement
+        this.cameraTransitionSpeed = 8;
+
+        // Debug
+        this.debug = false;
     }
 
     toggleMode() {
@@ -56,9 +75,59 @@ export class CameraController {
         this.kickFov = amount;
     }
 
+    handleCollisions(desiredPos, targetPos) {
+        const direction = new THREE.Vector3().subVectors(desiredPos, targetPos).normalize();
+        const distance = targetPos.distanceTo(desiredPos);
+        
+        this.raycaster.set(targetPos, direction);
+        const intersects = this.raycaster.intersectObjects(this.getCollidableObjects());
+        
+        if (intersects.length > 0) {
+            const hit = intersects[0];
+            const adjustedDistance = Math.max(this.minDistance, Math.min(hit.distance, distance));
+            return targetPos.clone().add(direction.multiplyScalar(adjustedDistance));
+        }
+        
+        return desiredPos;
+    }
+    
+    getCollidableObjects() {
+        // This should be implemented to return the actual collidable objects from your scene
+        return []; // Placeholder - integrate with your scene management
+    }
+    
+    applySpringDamper(currentPos, targetPos, deltaTime) {
+        const displacement = new THREE.Vector3().subVectors(targetPos, currentPos);
+        const force = displacement.multiplyScalar(this.springStrength);
+        force.sub(this.velocity.multiplyScalar(this.damperStrength));
+        
+        this.velocity.add(force.multiplyScalar(deltaTime));
+        return currentPos.clone().add(this.velocity.multiplyScalar(deltaTime));
+    }
+
     update(deltaTime) {
-        const chassisPos = this.targetBody.position;
-        const chassisQuat = this.targetBody.quaternion;
+        if (!this.targetBody) {
+            console.warn('CameraController: No target body set');
+            return;
+        }
+
+        // Get current target position and rotation
+        const targetPos = new THREE.Vector3(
+            this.targetBody.position.x,
+            this.targetBody.position.y,
+            this.targetBody.position.z
+        );
+
+        // Update target rotation
+        this.targetRotation.set(
+            this.targetBody.quaternion.x,
+            this.targetBody.quaternion.y,
+            this.targetBody.quaternion.z,
+            this.targetBody.quaternion.w
+        );
+
+        // Smoothly interpolate current rotation towards target
+        this.currentRotation.slerp(this.targetRotation, this.rotationSpeed * deltaTime);
 
         // Get the appropriate offset based on camera mode and rearview state
         let offset;
@@ -68,59 +137,42 @@ export class CameraController {
             offset = this.offsetFirstPerson;
         }
 
-        // Convert chassis quaternion to THREE.Quaternion
-        this.tempQuat.set(chassisQuat.x, chassisQuat.y, chassisQuat.z, chassisQuat.w);
+        // Calculate desired camera position
+        const worldOffset = offset.clone().applyQuaternion(this.currentRotation);
+        let desiredPos = targetPos.clone().add(worldOffset);
 
-        // Calculate camera position
-        const worldOffset = offset.clone().applyQuaternion(this.tempQuat);
-        const desiredPos = new THREE.Vector3(
-            chassisPos.x + worldOffset.x,
-            chassisPos.y + worldOffset.y,
-            chassisPos.z + worldOffset.z
-        );
-
-        // Smooth camera position transition in third person
+        // Apply collision detection in third person mode
         if (this.mode === 'third') {
-            this.camera.position.lerp(desiredPos, this.cameraTransitionSpeed * deltaTime);
+            desiredPos = this.handleCollisions(desiredPos, targetPos);
+            // Apply spring-damper system for smooth following
+            this.camera.position.copy(this.applySpringDamper(this.camera.position, desiredPos, deltaTime));
         } else {
             this.camera.position.copy(desiredPos);
         }
 
-        // Smoothly interpolate head rotation for first person rearview
+        // Calculate look target
+        let lookTarget;
         if (this.mode === 'first') {
+            // Handle first person head rotation
             const rotationDiff = this.targetHeadRotation - this.currentHeadRotation;
             if (Math.abs(rotationDiff) > 0.001) {
                 this.currentHeadRotation += rotationDiff * this.rearViewRotationSpeed * deltaTime;
             }
-        }
-
-        // Handle look target based on mode and rearview state
-        if (this.mode === 'first') {
-            // First person look target with head rotation
-            const lookDirection = new THREE.Vector3(0, 0.5, -2);
-            const headRotation = new THREE.Quaternion();
-            headRotation.setFromAxisAngle(new THREE.Vector3(0, 1, 0), this.currentHeadRotation);
-            lookDirection.applyQuaternion(headRotation);
-            lookDirection.applyQuaternion(this.tempQuat);
             
-            const lookTarget = new THREE.Vector3(
-                chassisPos.x + lookDirection.x,
-                chassisPos.y + lookDirection.y,
-                chassisPos.z + lookDirection.z
-            );
-            this.camera.lookAt(lookTarget);
+            const lookDirection = new THREE.Vector3(0, 0.5, -2);
+            const headRotation = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), this.currentHeadRotation);
+            lookDirection.applyQuaternion(headRotation).applyQuaternion(this.currentRotation);
+            lookTarget = targetPos.clone().add(lookDirection);
         } else {
             // Third person look target
-            const lookTarget = new THREE.Vector3(
-                chassisPos.x,
-                chassisPos.y + 1,
-                chassisPos.z
-            );
-            this.camera.lookAt(lookTarget);
+            lookTarget = targetPos.clone().add(new THREE.Vector3(0, 1, 0));
         }
 
+        // Update camera lookAt
+        this.camera.lookAt(lookTarget);
+
         // Handle FOV changes
-        const speed = this.targetBody.velocity.length();
+        const speed = this.targetBody.velocity ? this.targetBody.velocity.length() : 0;
         const speedRatio = Math.min(speed / 30, 1);
         const baseTargetFov = this.mode === 'first'
             ? this.baseFov + speedRatio * (this.boostFov - this.baseFov)
@@ -143,6 +195,17 @@ export class CameraController {
                 (Math.random() - 0.5) * this.shakeStrength
             );
             this.camera.position.add(shakeOffset);
+        }
+
+        // Debug output
+        if (this.debug) {
+            console.log('Camera State:', {
+                position: this.camera.position.toArray(),
+                target: lookTarget.toArray(),
+                rotation: this.currentRotation.toArray(),
+                fov: this.camera.fov,
+                speed: speed
+            });
         }
     }
 } 

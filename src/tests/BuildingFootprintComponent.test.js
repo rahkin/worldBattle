@@ -1,4 +1,4 @@
-import { describe, test, expect, beforeEach, jest } from '@jest/globals';
+import { describe, test, expect, jest, beforeEach, afterEach } from "@jest/globals";
 import { BuildingFootprintComponent } from '../ecs/components/BuildingFootprintComponent.js';
 import * as THREE from 'three';
 

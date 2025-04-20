@@ -1,7 +1,9 @@
+import { Component } from '../core/Component.js';
 import * as CANNON from 'cannon-es';
 
-export class CollisionComponent {
+export class CollisionComponent extends Component {
     constructor(options = {}) {
+        super();
         this.shape = options.shape || null;
         this.body = options.body || null;
         this.collisionGroup = options.collisionGroup || 1;
@@ -12,6 +14,13 @@ export class CollisionComponent {
         this.collidingEntities = new Set();
         this.lastCollisionTime = 0;
         this.collisionCooldown = options.collisionCooldown || 0;
+    }
+
+    init(entity) {
+        super.init(entity);
+        this.entity = entity;
+        this.world = entity.world;
+        console.log(`Initialized CollisionComponent for entity ${entity.id}`);
     }
 
     setCollisionGroup(group) {
@@ -69,5 +78,6 @@ export class CollisionComponent {
             this.body.removeEventListener('collideEnd', this.onCollideEnd);
         }
         this.collidingEntities.clear();
+        super.cleanup();
     }
 } 

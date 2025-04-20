@@ -1,4 +1,4 @@
-import { describe, test, expect, beforeEach, jest } from '@jest/globals';
+import { describe, test, expect, jest, beforeEach, afterEach } from "@jest/globals";
 import { EventBus } from '../core/EventBus.js';
 
 describe('EventBus', () => {

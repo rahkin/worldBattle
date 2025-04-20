@@ -1,20 +1,36 @@
 export class Component {
     constructor() {
         this.entity = null;
-        this.world = null;
+        this.enabled = true;
     }
 
-    init() {
-        // Override this method in derived components for initialization
+    init(properties) {
+        if (properties) {
+            Object.assign(this, properties);
+        }
     }
 
     update(deltaTime) {
-        // Override this method in derived components for per-frame updates
+        // Override in subclasses
     }
 
     cleanup() {
-        // Override this method in derived components to clean up resources
-        this.entity = null;
-        this.world = null;
+        // Override in subclasses
+    }
+
+    setEntity(entity) {
+        this.entity = entity;
+    }
+
+    getEntity() {
+        return this.entity;
+    }
+
+    getWorld() {
+        return this.entity ? this.entity.world : null;
+    }
+
+    getSystem(systemName) {
+        return this.getWorld()?.getSystem(systemName);
     }
 } 

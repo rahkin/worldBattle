@@ -1,4 +1,4 @@
-import { describe, test, expect, beforeEach, jest } from '@jest/globals';
+import { describe, test, expect, jest, beforeEach, afterEach } from "@jest/globals";
 import { TerrainComponent } from '../ecs/components/TerrainComponent.js';
 import * as THREE from 'three';
 

@@ -1,5 +1,5 @@
 import { describe, test, expect, beforeEach, jest } from '@jest/globals';
-import { Component } from '../ecs/Component.js';
+import { Component } from '../ecs/core/Component.js';
 
 describe('Component', () => {
     let component;
@@ -26,6 +26,13 @@ describe('Component', () => {
         test('should initialize with provided entity', () => {
             component.init(mockEntity);
             expect(component.entity).toBe(mockEntity);
+        });
+
+        test('should allow reinitialization with new entity', () => {
+            component.init(mockEntity);
+            const newEntity = { ...mockEntity, id: 'new-entity' };
+            component.init(newEntity);
+            expect(component.entity).toBe(newEntity);
         });
     });
 

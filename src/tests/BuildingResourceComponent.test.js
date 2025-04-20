@@ -1,4 +1,4 @@
-import { describe, test, expect, beforeEach } from '@jest/globals';
+import { describe, test, expect, jest, beforeEach, afterEach } from "@jest/globals";
 import { BuildingResourceComponent } from '../ecs/components/BuildingResourceComponent.js';
 
 describe('BuildingResourceComponent', () => {

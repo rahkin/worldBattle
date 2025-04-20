@@ -1,5 +1,5 @@
-import { describe, test, expect, beforeEach, jest } from '@jest/globals';
-import { World } from '../ecs/World.js';
+import { describe, test, expect, jest, beforeEach, afterEach } from "@jest/globals";
+import { World } from '../ecs/core/World.js';
 
 describe('World', () => {
     let world;

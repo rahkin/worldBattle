@@ -19,7 +19,7 @@ export class VehicleComponent extends Component {
         this.isReversing = false;
         
         // Vehicle type and configuration
-        this.vehicleType = config.vehicleType || 'default';
+        this.vehicleType = config.type || 'default';
         this.config = config;
         
         // Physics properties
@@ -42,6 +42,13 @@ export class VehicleComponent extends Component {
             damageBoost: 1.0,
             defenseBoost: 1.0
         };
+    }
+
+    init(entity) {
+        super.init(entity);
+        this.entity = entity;
+        this.world = entity.world;
+        console.log(`Initialized VehicleComponent for entity ${entity.id}`);
     }
     
     takeDamage(amount) {
@@ -79,5 +86,10 @@ export class VehicleComponent extends Component {
             damageBoost: 1.0,
             defenseBoost: 1.0
         };
+    }
+
+    cleanup() {
+        super.cleanup();
+        this.reset();
     }
 } 

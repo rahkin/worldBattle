@@ -12,6 +12,64 @@ export class PhysicsBody extends Component {
         this.angularVelocity = body.angularVelocity;
     }
 
+    init(entity) {
+        super.init(entity);
+        this.entity = entity;
+        this.world = entity.world;
+        
+        // Add body to physics world
+        const physicsSystem = this.world.getSystem('PhysicsSystem');
+        if (!physicsSystem) {
+            console.error('PhysicsSystem not found in world');
+            return;
+        }
+
+        console.log('Adding body to physics world:', {
+            mass: this.body.mass,
+            position: this.body.position,
+            quaternion: this.body.quaternion
+        });
+
+        try {
+            physicsSystem.physicsWorld.addBody(this.body);
+            console.log('Successfully added body to physics world');
+
+            if (this.vehicle) {
+                console.log('Initializing vehicle:', {
+                    wheelCount: this.vehicle.wheelInfos.length,
+                    chassisBody: {
+                        mass: this.vehicle.chassisBody.mass,
+                        position: this.vehicle.chassisBody.position,
+                        quaternion: this.vehicle.chassisBody.quaternion
+                    }
+                });
+
+                try {
+                    this.vehicle.addToWorld(physicsSystem.physicsWorld);
+                    console.log('Successfully added vehicle to physics world');
+
+                    // Initialize wheel transforms
+                    for (let i = 0; i < this.vehicle.wheelInfos.length; i++) {
+                        this.vehicle.updateWheelTransform(i);
+                        const wheel = this.vehicle.wheelInfos[i];
+                        console.log(`Initialized wheel ${i}:`, {
+                            radius: wheel.radius,
+                            suspensionLength: wheel.suspensionLength,
+                            position: wheel.worldTransform.position,
+                            quaternion: wheel.worldTransform.quaternion
+                        });
+                    }
+                } catch (error) {
+                    console.error('Failed to initialize vehicle:', error);
+                }
+            }
+        } catch (error) {
+            console.error('Failed to add body to physics world:', error);
+        }
+        
+        console.log(`Initialized PhysicsBody for entity ${entity.id}`);
+    }
+
     applyForce(force, worldPoint = new CANNON.Vec3()) {
         this.body.applyForce(force, worldPoint);
     }

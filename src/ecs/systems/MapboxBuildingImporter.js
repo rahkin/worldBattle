@@ -1,7 +1,7 @@
-import { System } from '../System.js';
+import { System } from '../core/System.js';
 import * as THREE from 'three';
 import { BuildingSystem } from './BuildingSystem.js';
-import { mapboxConfig } from '../../config/mapboxConfig.js';
+import { mapboxConfig } from '../config/mapboxConfig.js';
 import { VectorTile } from '@mapbox/vector-tile';
 import Protobuf from 'pbf';
 

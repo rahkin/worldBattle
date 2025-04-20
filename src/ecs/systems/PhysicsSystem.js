@@ -1,23 +1,29 @@
-import * as CANNON from 'cannon-es';
-import { System } from '../System.js';
+import { System } from '../core/System.js';
 import { PhysicsBody } from '../components/PhysicsBody.js';
+import * as CANNON from 'cannon-es';
 
 export class PhysicsSystem extends System {
     constructor() {
         super();
         this.requiredComponents = [PhysicsBody];
         
-        // Initialize CANNON.js physics world
+        // Initialize CANNON.js physics world with lower gravity
         this.physicsWorld = new CANNON.World({
             gravity: new CANNON.Vec3(0, -9.82, 0)
         });
         
-        this.physicsWorld.defaultContactMaterial.friction = 0.7;
-        this.physicsWorld.defaultContactMaterial.restitution = 0.3;
+        // Set very low friction and restitution
+        this.physicsWorld.defaultContactMaterial.friction = 0.3;
+        this.physicsWorld.defaultContactMaterial.restitution = 0.01;
 
-        // Create ground material
+        // Create ground material with low friction
         this.groundMaterial = new CANNON.Material('ground');
+        this.groundMaterial.friction = 0.3;
+        this.groundMaterial.restitution = 0.01;
+        
         this.vehicleMaterial = new CANNON.Material('vehicle');
+        this.vehicleMaterial.friction = 0.3;
+        this.vehicleMaterial.restitution = 0.01;
 
         // Create contact material between ground and vehicle
         const groundVehicleContactMaterial = new CANNON.ContactMaterial(
@@ -25,74 +31,172 @@ export class PhysicsSystem extends System {
             this.vehicleMaterial,
             {
                 friction: 0.3,
-                restitution: 0.3,
-                contactEquationStiffness: 1e6,
+                restitution: 0.01,
+                contactEquationStiffness: 1e8,
                 contactEquationRelaxation: 3,
-                frictionEquationStiffness: 1e6,
+                frictionEquationStiffness: 1e8,
                 frictionEquationRelaxation: 3
             }
         );
 
         this.physicsWorld.addContactMaterial(groundVehicleContactMaterial);
 
-        // Set up broadphase
+        // Set up broadphase and solver
         this.physicsWorld.broadphase = new CANNON.SAPBroadphase(this.physicsWorld);
-        this.physicsWorld.solver.iterations = 10;
+        this.physicsWorld.solver.iterations = 50;  // Increased iterations
+        this.physicsWorld.solver.tolerance = 0.0001;
+        this.physicsWorld.solver.frictionIterations = 3;
 
-        // Debug properties
-        this.debugEnabled = false;
+        // Enable debug mode
+        this.debugEnabled = true;
         this.collisionEvents = [];
+        this.debugFrameCount = 0;
+
+        console.log('PhysicsSystem constructed with:', {
+            gravity: this.physicsWorld.gravity,
+            friction: this.physicsWorld.defaultContactMaterial.friction,
+            restitution: this.physicsWorld.defaultContactMaterial.restitution,
+            solverIterations: this.physicsWorld.solver.iterations
+        });
     }
 
     init() {
+        if (!this.enabled) {
+            console.warn('PhysicsSystem is disabled, skipping initialization');
+            return Promise.resolve();
+        }
+
         console.log('PhysicsSystem initializing...');
+        
+        // Log all existing bodies before adding ground
+        console.log('Existing bodies before ground creation:', 
+            this.physicsWorld.bodies.map(body => ({
+                id: body.id,
+                type: body.type,
+                position: body.position,
+                mass: body.mass,
+                material: body.material ? body.material.name : 'none'
+            }))
+        );
+
         // Create ground plane
         const groundBody = this.createGroundBody();
         this.physicsWorld.addBody(groundBody);
+
+        // Log all bodies after adding ground
+        console.log('All physics bodies after initialization:', 
+            this.physicsWorld.bodies.map(body => ({
+                id: body.id,
+                type: body.type,
+                position: body.position,
+                mass: body.mass,
+                material: body.material ? body.material.name : 'none'
+            }))
+        );
+
         console.log('PhysicsSystem initialization complete');
+        return Promise.resolve();
     }
 
     update(deltaTime) {
-        // Clear collision events from previous frame
-        this.collisionEvents = [];
+        if (!this.enabled) return;
 
+        this.debugFrameCount++;
+        
         // Step the physics world
-        this.physicsWorld.step(1/60, deltaTime, 3);
+        const fixedTimeStep = 1/60;
+        const maxSubSteps = 10;
+        try {
+            this.physicsWorld.step(fixedTimeStep, deltaTime, maxSubSteps);
+            
+            // Log only meaningful contacts
+            const significantContacts = this.physicsWorld.contacts.filter(c => 
+                c.getImpactVelocityAlongNormal() > 1.0  // Increased threshold
+            );
+            
+            if (significantContacts.length > 0) {
+                console.log('Significant contacts:', significantContacts.map(contact => ({
+                    bodyA: contact.bi ? { 
+                        id: contact.bi.id, 
+                        material: contact.bi.material?.name
+                    } : 'unknown',
+                    bodyB: contact.bj ? {
+                        id: contact.bj.id,
+                        material: contact.bj.material?.name
+                    } : 'unknown',
+                    force: contact.getImpactVelocityAlongNormal().toFixed(2)
+                })));
+            }
+        } catch (error) {
+            console.error('Physics step failed:', error);
+            return;
+        }
 
         // Update all physics bodies
         const entities = this.world.getEntitiesWithComponents(this.requiredComponents);
+
         for (const entity of entities) {
             const physicsBody = entity.getComponent(PhysicsBody);
-            if (physicsBody && physicsBody.body) {
-                // Update component state from physics body
-                physicsBody.position.copy(physicsBody.body.position);
-                physicsBody.quaternion.copy(physicsBody.body.quaternion);
-                physicsBody.velocity.copy(physicsBody.body.velocity);
-                physicsBody.angularVelocity.copy(physicsBody.body.angularVelocity);
+            if (!physicsBody || !physicsBody.body) continue;
 
-                // Update vehicle wheels if present
-                if (physicsBody.vehicle) {
-                    for (let i = 0; i < physicsBody.vehicle.wheelInfos.length; i++) {
-                        physicsBody.vehicle.updateWheelTransform(i);
-                    }
-                }
+            // Update component state from physics body
+            physicsBody.position.copy(physicsBody.body.position);
+            physicsBody.quaternion.copy(physicsBody.body.quaternion);
+            physicsBody.velocity.copy(physicsBody.body.velocity);
+            physicsBody.angularVelocity.copy(physicsBody.body.angularVelocity);
+
+            // Debug logging for vehicle state only when significant movement or every 5 seconds
+            if (physicsBody.vehicle && 
+                (this.debugFrameCount % 300 === 0 || 
+                Math.abs(physicsBody.velocity.length()) > 0.1)) {
+                
+                console.log('Vehicle state:', {
+                    position: {
+                        x: physicsBody.position.x.toFixed(2),
+                        y: physicsBody.position.y.toFixed(2),
+                        z: physicsBody.position.z.toFixed(2)
+                    },
+                    speed: physicsBody.velocity.length().toFixed(2),
+                    wheelsInContact: physicsBody.vehicle.wheelInfos.filter(w => w.isInContact).length
+                });
             }
-        }
-
-        // Debug logging if enabled
-        if (this.debugEnabled) {
-            this.logDebugInfo();
         }
     }
 
     createGroundBody() {
+        // Create a slightly larger ground plane
         const groundShape = new CANNON.Plane();
         const groundBody = new CANNON.Body({
+            mass: 0,  // Static body
+            material: this.groundMaterial,
+            shape: groundShape,
+            collisionFilterGroup: 1,
+            collisionFilterMask: -1
+        });
+        
+        // Rotate and position the ground to match the visual plane
+        groundBody.quaternion.setFromAxisAngle(new CANNON.Vec3(1, 0, 0), -Math.PI / 2);
+        groundBody.position.set(0, 0, 0);
+
+        // Add a debug shape to visualize the ground plane collision
+        const debugShape = new CANNON.Box(new CANNON.Vec3(50, 0.1, 50));
+        const debugBody = new CANNON.Body({
             mass: 0,
             material: this.groundMaterial,
-            shape: groundShape
+            shape: debugShape,
+            collisionFilterGroup: 1,
+            collisionFilterMask: -1
         });
-        groundBody.quaternion.setFromAxisAngle(new CANNON.Vec3(1, 0, 0), -Math.PI / 2);
+        debugBody.position.set(0, -0.1, 0);  // Slightly below the ground plane
+        this.physicsWorld.addBody(debugBody);
+
+        console.log('Ground plane created:', {
+            position: groundBody.position,
+            quaternion: groundBody.quaternion,
+            material: groundBody.material.name,
+            friction: this.groundMaterial.friction
+        });
+
         return groundBody;
     }
 
@@ -212,10 +316,43 @@ export class PhysicsSystem extends System {
     }
 
     cleanup() {
+        console.log('Cleaning up physics system...');
+        console.log('Bodies before cleanup:', 
+            this.physicsWorld.bodies.map(body => ({
+                id: body.id,
+                type: body.type,
+                material: body.material?.name,
+                position: body.position
+            }))
+        );
+
         // Remove all bodies from the physics world
         while(this.physicsWorld.bodies.length > 0) {
-            this.physicsWorld.removeBody(this.physicsWorld.bodies[0]);
+            const body = this.physicsWorld.bodies[0];
+            console.log('Removing body:', {
+                id: body.id,
+                type: body.type,
+                material: body.material?.name
+            });
+            this.physicsWorld.removeBody(body);
         }
+
+        // Clear all contact materials
+        this.physicsWorld.contactmaterials.length = 0;
+
+        // Reset the ground plane
+        const groundBody = this.createGroundBody();
+        this.physicsWorld.addBody(groundBody);
+
+        // Clear collision events
         this.collisionEvents = [];
+
+        console.log('Physics cleanup complete. Remaining bodies:', 
+            this.physicsWorld.bodies.map(body => ({
+                id: body.id,
+                type: body.type,
+                material: body.material?.name
+            }))
+        );
     }
 } 

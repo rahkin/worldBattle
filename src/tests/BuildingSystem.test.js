@@ -1,20 +1,54 @@
+import { describe, test, expect, jest, beforeEach, afterEach } from "@jest/globals";
 import { BuildingSystem } from '../ecs/systems/BuildingSystem.js';
-import { World } from '../ecs/World.js';
 import * as THREE from 'three';
+
+// Mock World class
+class MockWorld {
+    constructor() {
+        this.entities = new Map();
+        this.systems = new Map();
+        this.nextEntityId = 1;
+        this.entitiesToRemove = new Set();
+        this.init = jest.fn().mockResolvedValue();
+        this.update = jest.fn();
+        this.cleanup = jest.fn();
+        this.addSystem = jest.fn().mockImplementation(async (system) => {
+            const systemName = system.constructor.name;
+            this.systems.set(systemName, system);
+            system.world = this; // Set the world reference on the system
+            if (system.init) {
+                await system.init();
+            }
+        });
+        this.getSystem = jest.fn().mockImplementation((name) => this.systems.get(name));
+        this.removeSystem = jest.fn();
+        this.createEntity = jest.fn().mockImplementation(() => {
+            const entity = {
+                id: this.nextEntityId++,
+                components: new Map(),
+                addComponent: jest.fn(),
+                addToWorld: jest.fn()
+            };
+            this.entities.set(entity.id, entity);
+            return entity;
+        });
+        this.removeEntity = jest.fn();
+    }
+}
 
 describe('BuildingSystem', () => {
     let system;
     let world;
 
     beforeEach(() => {
-        world = new World();
-        system = new BuildingSystem();
+        world = new MockWorld();
+        system = new BuildingSystem({ world });
         world.addSystem(system);
     });
 
     describe('initialization', () => {
         test('should initialize with no properties provided', () => {
-            system = new BuildingSystem();
+            system = new BuildingSystem({ world });
             expect(system.buildings).toEqual(new Map());
             expect(system.constructionQueue).toEqual([]);
             expect(system.demolitionQueue).toEqual([]);
@@ -26,6 +60,7 @@ describe('BuildingSystem', () => {
 
         test('should initialize with partial properties', () => {
             system = new BuildingSystem({
+                world,
                 maxConstructionWorkers: 5
             });
             expect(system.maxConstructionWorkers).toBe(5);
@@ -47,6 +82,7 @@ describe('BuildingSystem', () => {
             };
 
             system = new BuildingSystem({
+                world,
                 maxConstructionWorkers: 5,
                 constructionTime: 1.0,
                 buildingTemplates: {
@@ -64,6 +100,7 @@ describe('BuildingSystem', () => {
 
         test('should handle empty building templates', () => {
             system = new BuildingSystem({
+                world,
                 buildingTemplates: {}
             });
             expect(system.buildingTemplates.size).toBe(0);

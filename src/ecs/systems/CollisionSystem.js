@@ -1,6 +1,6 @@
 import { System } from '../core/System.js';
 import { CollisionComponent } from '../components/CollisionComponent.js';
-import { PhysicsSystem } from './PhysicsSystem.js';
+import { PhysicsBody } from '../components/PhysicsBody.js';
 
 export class CollisionSystem extends System {
     constructor() {

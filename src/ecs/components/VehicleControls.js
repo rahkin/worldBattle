@@ -23,6 +23,13 @@ export class VehicleControls extends Component {
         this.setupVehicleCharacteristics();
     }
 
+    init(entity) {
+        super.init(entity);
+        this.entity = entity;
+        this.world = entity.world;
+        console.log(`Initialized VehicleControls for entity ${entity.id}`);
+    }
+
     setupVehicleCharacteristics() {
         // Define characteristics for each vehicle type
         const characteristics = {
@@ -64,18 +71,36 @@ export class VehicleControls extends Component {
     }
 
     update(input, physicsBody) {
-        if (!input || !physicsBody || !physicsBody.vehicle) return;
+        if (!input || !physicsBody || !physicsBody.vehicle) {
+            console.warn('Missing required components for vehicle controls update');
+            return;
+        }
 
         const vehicle = physicsBody.vehicle;
 
+        // Debug input state
+        if (input.forward || input.backward || input.left || input.right || input.brake || input.boost) {
+            console.log('Vehicle Controls Input State:', {
+                forward: input.forward,
+                backward: input.backward,
+                left: input.left,
+                right: input.right,
+                brake: input.brake,
+                boost: input.boost,
+                engineForce: this.engineForce,
+                steeringAngle: this.steeringAngle,
+                brakeForce: this.brakeForce
+            });
+        }
+
         // Handle acceleration/braking
-        if (input.engineForce > 0) {
+        if (input.forward) {
             // Forward
-            this.engineForce = input.engineForce * this.maxForwardForce;
+            this.engineForce = this.maxForwardForce;
             this.brakeForce = 0;
-        } else if (input.engineForce < 0) {
+        } else if (input.backward) {
             // Reverse
-            this.engineForce = input.engineForce * this.maxReverseForce;
+            this.engineForce = -this.maxReverseForce;
             this.brakeForce = 0;
         } else {
             // No input - apply slight brake force for better control
@@ -84,20 +109,30 @@ export class VehicleControls extends Component {
         }
 
         // Apply boost if active
-        if (input.boost) {
+        if (input.boost && input.forward) {
             this.engineForce *= this.boostMultiplier;
             this.isBoosting = true;
+            console.log('Boost activated, engine force:', this.engineForce);
         } else {
             this.isBoosting = false;
         }
 
         // Handle steering
-        this.steeringAngle = input.steeringForce * this.maxSteeringAngle;
+        if (input.left) {
+            this.steeringAngle = this.maxSteeringAngle;
+            console.log('Steering left:', this.steeringAngle);
+        } else if (input.right) {
+            this.steeringAngle = -this.maxSteeringAngle;
+            console.log('Steering right:', this.steeringAngle);
+        } else {
+            this.steeringAngle = 0;
+        }
 
         // Apply brake force if brake is pressed
-        if (input.brakeForce > 0) {
-            this.brakeForce = input.brakeForce * this.maxBrakeForce;
+        if (input.brake) {
+            this.brakeForce = this.maxBrakeForce;
             this.engineForce *= 0.3; // Reduce engine force while braking
+            console.log('Brake applied:', this.brakeForce);
         }
 
         // Apply forces to wheels
@@ -105,15 +140,20 @@ export class VehicleControls extends Component {
             // Apply engine force to back wheels
             if (i >= 2) { // Back wheels
                 vehicle.applyEngineForce(this.engineForce, i);
+                console.log(`Applied engine force to wheel ${i}:`, this.engineForce);
             }
 
             // Apply steering to front wheels
             if (i < 2) { // Front wheels
                 vehicle.setSteeringValue(this.steeringAngle, i);
+                console.log(`Applied steering to wheel ${i}:`, this.steeringAngle);
             }
 
             // Apply brakes to all wheels
             vehicle.setBrake(this.brakeForce, i);
+            if (this.brakeForce > 0) {
+                console.log(`Applied brake force to wheel ${i}:`, this.brakeForce);
+            }
         }
 
         // Apply downforce for better stability
@@ -123,6 +163,16 @@ export class VehicleControls extends Component {
             new CANNON.Vec3(0, -downforce, 0),
             new CANNON.Vec3(0, 0, 0)
         );
+
+        // Debug vehicle state
+        console.log('Vehicle State:', {
+            engineForce: this.engineForce,
+            steeringAngle: this.steeringAngle,
+            brakeForce: this.brakeForce,
+            speed: speed,
+            downforce: downforce,
+            isBoosting: this.isBoosting
+        });
     }
 
     getState() {

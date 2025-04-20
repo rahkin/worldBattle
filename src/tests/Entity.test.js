@@ -1,6 +1,6 @@
-import { describe, test, expect, beforeEach, jest } from '@jest/globals';
-import { Entity } from '../ecs/Entity.js';
-import { Component } from '../ecs/Component.js';
+import { describe, test, expect, jest, beforeEach, afterEach } from "@jest/globals";
+import { Entity } from '../ecs/core/Entity.js';
+import { Component } from '../ecs/core/Component.js';
 
 describe('Entity', () => {
     let entity;

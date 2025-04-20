@@ -1,4 +1,4 @@
-import { System } from '../System.js';
+import { System } from '../core/System.js';
 import * as THREE from 'three';
 import * as CANNON from 'cannon-es';
 

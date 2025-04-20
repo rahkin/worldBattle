@@ -1,8 +1,36 @@
-import { describe, test, expect, beforeEach, jest } from '@jest/globals';
+import { describe, test, expect, jest, beforeEach, afterEach } from "@jest/globals";
 import { MapboxBuildingImporter } from '../importers/MapboxBuildingImporter.js';
 import { BuildingSystem } from '../ecs/systems/BuildingSystem.js';
-import { World } from '../ecs/World.js';
 import * as THREE from 'three';
+
+// Mock World class
+class MockWorld {
+    constructor() {
+        this.entities = new Map();
+        this.systems = new Map();
+        this.nextEntityId = 1;
+        this.entitiesToRemove = new Set();
+        this.init = jest.fn().mockResolvedValue();
+        this.update = jest.fn();
+        this.cleanup = jest.fn();
+        this.addSystem = jest.fn().mockImplementation(async (system) => {
+            const systemName = system.constructor.name;
+            this.systems.set(systemName, system);
+            system.world = this; // Set the world reference on the system
+            if (system.init) {
+                await system.init();
+            }
+        });
+        this.getSystem = jest.fn().mockImplementation((name) => this.systems.get(name));
+        this.removeSystem = jest.fn();
+        this.createEntity = jest.fn().mockImplementation(() => {
+            const entity = { id: this.nextEntityId++, components: new Map() };
+            this.entities.set(entity.id, entity);
+            return entity;
+        });
+        this.removeEntity = jest.fn();
+    }
+}
 
 describe('MapboxBuildingImporter', () => {
     let importer;
@@ -10,8 +38,8 @@ describe('MapboxBuildingImporter', () => {
     let buildingSystem;
 
     beforeEach(() => {
-        world = new World();
-        buildingSystem = new BuildingSystem();
+        world = new MockWorld();
+        buildingSystem = new BuildingSystem({ world });
         world.addSystem(buildingSystem);
         importer = new MapboxBuildingImporter({
             accessToken: 'test-token',

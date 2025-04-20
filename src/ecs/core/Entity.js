@@ -2,22 +2,52 @@ export class Entity {
     constructor(id) {
         this.id = id;
         this.components = new Map();
+        this.world = null;
+        this.enabled = true;
     }
 
     addComponent(component) {
-        this.components.set(component.constructor.name, component);
-        return this;
+        const componentName = component.constructor.name;
+        this.components.set(componentName, component);
+        component.setEntity(this);
+        return component;
     }
 
     removeComponent(componentType) {
-        this.components.delete(componentType.name);
+        const component = this.components.get(componentType);
+        if (component) {
+            if (component.cleanup) {
+                component.cleanup();
+            }
+            this.components.delete(componentType);
+        }
     }
 
     getComponent(componentType) {
-        return this.components.get(componentType.name);
+        return this.components.get(componentType);
     }
 
-    hasComponents(componentTypes) {
-        return componentTypes.every(type => this.components.has(type.name));
+    hasComponent(componentType) {
+        return this.components.has(componentType);
+    }
+
+    update(deltaTime) {
+        if (!this.enabled) return;
+        
+        for (const component of this.components.values()) {
+            if (component.enabled && component.update) {
+                component.update(deltaTime);
+            }
+        }
+    }
+
+    cleanup() {
+        for (const component of this.components.values()) {
+            if (component.cleanup) {
+                component.cleanup();
+            }
+        }
+        this.components.clear();
+        this.world = null;
     }
 } 

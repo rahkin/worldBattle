@@ -1,9 +1,9 @@
-import { System } from '../System.js';
+import { System } from '../core/System.js';
 import { VehicleComponent } from '../components/VehicleComponent.js';
 import { MeshComponent } from '../components/MeshComponent.js';
 import { PhysicsBody } from '../components/PhysicsBody.js';
 import { InputComponent } from '../components/InputComponent.js';
-import { VehicleControls } from '../components/VehicleControls.js';
+import { VehicleControlsComponent } from '../components/VehicleControlsComponent.js';
 import { CollisionComponent } from '../components/CollisionComponent.js';
 import { WeaponComponent } from '../components/WeaponComponent.js';
 import { AudioSystem } from './AudioSystem.js';
@@ -13,23 +13,24 @@ import * as CANNON from 'cannon-es';
 export class VehicleSystem extends System {
     constructor(scene, physicsWorld) {
         super();
-        this.requiredComponents = [VehicleComponent, PhysicsBody, MeshComponent, VehicleControls];
+        this.requiredComponents = [VehicleComponent, PhysicsBody, MeshComponent, VehicleControlsComponent];
         this.scene = scene;
         this.physicsWorld = physicsWorld;
         this.vehicles = new Map();
         
-        // Vehicle physics constants
+        // Basic vehicle physics constants
         this.maxSteerVal = 0.5;
-        this.normalForce = 1800;
-        this.boostForce = 2200;
-        this.reverseForce = 800;
+        this.normalForce = 4000;
+        this.boostForce = 6000;
+        this.reverseForce = 2000;
         this.brakeForce = 100;
+        this.rollingResistance = 50;
         this.turnSpeed = 2.0;
-        this.maxSpeed = 50;
+        this.maxSpeed = 100;
     }
 
-    init() {
-        super.init();
+    init(world) {
+        super.init(world);
         if (!this.world) {
             throw new Error('World not initialized in VehicleSystem');
         }
@@ -37,87 +38,134 @@ export class VehicleSystem extends System {
     }
 
     createVehicle(type, position = new THREE.Vector3()) {
+        console.log('Creating vehicle:', { type, position });
+        
         if (!this.world) {
             throw new Error('World not initialized in VehicleSystem');
         }
-
+        
         const entity = this.world.createEntity();
         
-        // Create vehicle component
+        // Create vehicle component with proper configuration
         const vehicleComponent = new VehicleComponent({
             type,
             maxHealth: 100,
             damageResistance: 1.0,
             isHeavyVehicle: type === 'tank',
-            stats: this.getVehicleStats(type)
+            mass: this.getVehicleMass(type)
         });
         entity.addComponent(vehicleComponent);
 
-        // Create physics body
+        // Create mesh component with proper vehicle mesh
+        const vehicleGroup = this.createVehicleMesh(type);
+        const meshComponent = new MeshComponent(vehicleGroup);
+        entity.addComponent(meshComponent);
+        
+        // Add mesh to scene
+        if (this.scene) {
+            this.scene.add(vehicleGroup);
+            console.log('Added vehicle mesh to scene:', {
+                type,
+                position: vehicleGroup.position,
+                meshChildren: vehicleGroup.children.length
+            });
+        } else {
+            console.error('Scene not available for vehicle mesh');
+        }
+
+        // Create vehicle shape
         const shape = this.createVehicleShape(type);
+        
+        // Create physics body
         const body = new CANNON.Body({
             mass: this.getVehicleMass(type),
             shape: shape,
-            position: new CANNON.Vec3(position.x, position.y + 1, position.z), // Raise initial position
-            material: new CANNON.Material('vehicleMaterial')
+            position: new CANNON.Vec3(position.x, position.y, position.z),
+            material: new CANNON.Material('vehicleMaterial'),
+            linearDamping: 0.1,
+            angularDamping: 0.1
         });
 
-        // Set up physics body properties
-        body.linearDamping = 0.1;
-        body.angularDamping = 0.1;
-        body.allowSleep = false;
-        
-        // Create vehicle physics
+        // Create vehicle with proper axis configuration
         const vehicle = new CANNON.RaycastVehicle({
             chassisBody: body,
-            indexRightAxis: 0,
-            indexUpAxis: 1,
-            indexForwardAxis: 2
+            indexRightAxis: 0,    // X axis is right
+            indexUpAxis: 1,       // Y axis is up
+            indexForwardAxis: 2,  // Z axis is forward
         });
 
-        // Add wheels based on vehicle type
-        this.addWheels(vehicle, type);
+        // Add wheels with proper configuration
+        const wheelOptions = {
+            radius: 0.3,
+            directionLocal: new CANNON.Vec3(0, -1, 0),
+            suspensionStiffness: 30,
+            suspensionRestLength: 0.2,
+            frictionSlip: 2.0,
+            dampingRelaxation: 2.3,
+            dampingCompression: 4.4,
+            maxSuspensionForce: 100000,
+            rollInfluence: 0.01,
+            axleLocal: new CANNON.Vec3(1, 0, 0),
+            chassisConnectionPointLocal: new CANNON.Vec3(1, 0, 1),
+            maxSuspensionTravel: 0.2,
+            customSlidingRotationalSpeed: -30,
+            useCustomSlidingRotationalSpeed: true
+        };
+
+        // Add wheels at proper positions
+        const FRONT_AXLE = -1.0;
+        const REAR_AXLE = 1.0;
+        const WHEEL_Y = 0.0;
+        const WHEEL_X = 0.8;
+
+        // Front left
+        wheelOptions.chassisConnectionPointLocal.set(-WHEEL_X, WHEEL_Y, FRONT_AXLE);
+        vehicle.addWheel(wheelOptions);
+
+        // Front right
+        wheelOptions.chassisConnectionPointLocal.set(WHEEL_X, WHEEL_Y, FRONT_AXLE);
+        vehicle.addWheel(wheelOptions);
+
+        // Rear left
+        wheelOptions.chassisConnectionPointLocal.set(-WHEEL_X, WHEEL_Y, REAR_AXLE);
+        vehicle.addWheel(wheelOptions);
+
+        // Rear right
+        wheelOptions.chassisConnectionPointLocal.set(WHEEL_X, WHEEL_Y, REAR_AXLE);
+        vehicle.addWheel(wheelOptions);
+
+        // Add vehicle to physics world
         vehicle.addToWorld(this.physicsWorld);
-        
+
         // Create physics body component
         const physicsBody = new PhysicsBody(body, vehicle);
         entity.addComponent(physicsBody);
 
-        // Create vehicle controls
-        const vehicleControls = new VehicleControls({ type });
+        // Add vehicle controls
+        const vehicleControls = new VehicleControlsComponent();
         entity.addComponent(vehicleControls);
-
-        // Create mesh
-        const mesh = this.createVehicleMesh(type);
-        entity.addComponent(new MeshComponent(mesh));
-        this.scene.add(mesh);
 
         // Add input component
         const inputComponent = new InputComponent();
         entity.addComponent(inputComponent);
 
-        // Add weapon component
-        const weaponComponent = new WeaponComponent({
-            type: 'machineGun',
-            damage: 10,
-            fireRate: 0.1,
-            range: 100,
-            ammo: 100,
-            maxAmmo: 100,
-            reloadTime: 2.0,
-            offset: new THREE.Vector3(0, 0.5, -1.5) // Position relative to vehicle
-        });
-        entity.addComponent(weaponComponent);
-
-        // Add collision component
-        const collisionComponent = new CollisionComponent({
-            collisionGroup: 2, // Vehicle group
-            collisionMask: ~2, // Collide with everything except vehicles
-            onCollide: (otherEntity, event) => this.handleCollision(entity, otherEntity, event)
-        });
-        entity.addComponent(collisionComponent);
-
+        // Store vehicle reference
         this.vehicles.set(entity.id, entity);
+
+        console.log('Vehicle created successfully:', {
+            type,
+            position: body.position,
+            mass: body.mass,
+            components: {
+                vehicle: !!vehicleComponent,
+                mesh: !!meshComponent,
+                physics: !!physicsBody,
+                controls: !!vehicleControls,
+                input: !!inputComponent
+            },
+            wheels: vehicle.wheelInfos.length
+        });
+
         return entity;
     }
 
@@ -134,33 +182,45 @@ export class VehicleSystem extends System {
 
     getVehicleMass(type) {
         const masses = {
-            muscle: 1500,
-            ironclad: 2000,
-            scorpion: 1200,
-            tank: 3000,
-            drone: 800
+            muscle: 1000,
+            ironclad: 1200,
+            scorpion: 800,
+            tank: 2000,
+            drone: 500
         };
-        return masses[type] || 1500;
+        return masses[type] || 1000;
     }
 
     createVehicleShape(type) {
         const dimensions = {
-            muscle: { width: 1.2, height: 0.6, length: 2.5 },    // Increased height
-            ironclad: { width: 1.4, height: 0.7, length: 2.8 },  // Increased height
-            scorpion: { width: 1.1, height: 0.5, length: 2.3 },  // Increased height
-            tank: { width: 1.6, height: 0.8, length: 3.0 },      // Increased height
-            drone: { width: 1.0, height: 0.4, length: 2.0 }      // Increased height
+            muscle: { width: 2.4, height: 1.0, length: 5.0 },
+            ironclad: { width: 2.8, height: 1.2, length: 5.6 },
+            scorpion: { width: 2.2, height: 0.8, length: 4.6 },
+            tank: { width: 3.2, height: 1.4, length: 6.0 },
+            drone: { width: 2.0, height: 0.6, length: 4.0 }
         };
         
         const dim = dimensions[type] || dimensions.muscle;
-        return new CANNON.Box(new CANNON.Vec3(dim.width, dim.height, dim.length));
+        
+        // Create shape with half-dimensions for CANNON.js
+        const shape = new CANNON.Box(new CANNON.Vec3(
+            dim.width * 0.5,  // Half-width
+            dim.height * 0.5, // Half-height
+            dim.length * 0.5  // Half-length
+        ));
+        
+        // Set collision groups
+        shape.collisionFilterGroup = 2;  // Vehicle group
+        shape.collisionFilterMask = -1;  // Collide with everything
+        
+        return shape;
     }
 
     createVehicleMesh(type) {
-        // Create a group to hold all the vehicle parts
+        // Create a group to hold all vehicle parts
         const group = new THREE.Group();
 
-        // Base dimensions for the chassis
+        // Base dimensions for the chassis (doubled to match physics body)
         const dimensions = {
             muscle: { width: 2.4, height: 1.0, length: 5.0 },
             ironclad: { width: 2.8, height: 1.2, length: 5.6 },
@@ -170,13 +230,17 @@ export class VehicleSystem extends System {
         };
 
         const dim = dimensions[type] || dimensions.muscle;
-        
-        // Create main body
+
+        // Create the main body geometry
         const bodyGeometry = new THREE.BoxGeometry(dim.width, dim.height, dim.length);
-        const bodyMaterial = new THREE.MeshStandardMaterial({
+        
+        // Create material with proper color and properties
+        const bodyMaterial = new THREE.MeshPhysicalMaterial({
             color: this.getVehicleColor(type),
-            metalness: type === 'ironclad' ? 0.8 : 0.5,
-            roughness: type === 'ironclad' ? 0.2 : 0.6
+            metalness: 0.7,
+            roughness: 0.3,
+            clearcoat: 0.5,
+            clearcoatRoughness: 0.3
         });
 
         const bodyMesh = new THREE.Mesh(bodyGeometry, bodyMaterial);
@@ -184,330 +248,240 @@ export class VehicleSystem extends System {
         bodyMesh.receiveShadow = true;
         group.add(bodyMesh);
 
-        // Add weapon mesh based on vehicle type
-        const weaponMaterial = new THREE.MeshStandardMaterial({ 
-            color: 0x333333, 
-            metalness: 0.8, 
-            roughness: 0.2 
+        // Add wheels with proper dimensions
+        const wheelRadius = 0.5;
+        const wheelThickness = 0.3;
+        const wheelSegments = 32;
+        const wheelGeometry = new THREE.CylinderGeometry(
+            wheelRadius,
+            wheelRadius,
+            wheelThickness,
+            wheelSegments
+        );
+
+        const wheelMaterial = new THREE.MeshPhysicalMaterial({
+            color: 0x202020,
+            metalness: 0.9,
+            roughness: 0.4,
+            clearcoat: 0.3
         });
 
-        switch(type) {
-            case 'muscle':
-                // Add machine gun on top
-                const gunGeometry = new THREE.CylinderGeometry(0.1, 0.1, 0.8, 8);
-                const gun = new THREE.Mesh(gunGeometry, weaponMaterial);
-                gun.position.set(0, dim.height/2 + 0.4, -dim.length/3);
-                gun.rotation.set(Math.PI/2, 0, 0);
-                group.add(gun);
-                break;
+        // Wheel positions relative to body
+        const wheelPositions = [
+            { x: -dim.width/2 + wheelThickness/2, y: -dim.height/2, z: dim.length/3 },    // Front Left
+            { x: dim.width/2 - wheelThickness/2, y: -dim.height/2, z: dim.length/3 },     // Front Right
+            { x: -dim.width/2 + wheelThickness/2, y: -dim.height/2, z: -dim.length/3 },   // Rear Left
+            { x: dim.width/2 - wheelThickness/2, y: -dim.height/2, z: -dim.length/3 }     // Rear Right
+        ];
 
-            case 'ironclad':
-                // Add dual machine guns on sides
-                const dualGunGeometry = new THREE.CylinderGeometry(0.15, 0.15, 1.0, 8);
-                [-1, 1].forEach(side => {
-                    const gun = new THREE.Mesh(dualGunGeometry, weaponMaterial);
-                    gun.position.set(side * (dim.width/2 + 0.1), dim.height/2 + 0.3, -dim.length/3);
-                    gun.rotation.set(Math.PI/2, 0, 0);
-                    group.add(gun);
-                });
-                break;
-
-            case 'scorpion':
-                // Add forward-facing cannon
-                const cannonGeometry = new THREE.CylinderGeometry(0.2, 0.2, 1.2, 8);
-                const cannon = new THREE.Mesh(cannonGeometry, weaponMaterial);
-                cannon.position.set(0, dim.height/2 + 0.2, -dim.length/2);
-                cannon.rotation.set(0, 0, 0);
-                group.add(cannon);
-                break;
-
-            case 'tank':
-                // Add turret and main cannon
-                const turretGeometry = new THREE.CylinderGeometry(
-                    dim.width * 0.3, 
-                    dim.width * 0.4, 
-                    dim.height * 0.6, 
-                    8
-                );
-                const turretMaterial = new THREE.MeshStandardMaterial({ 
-                    color: 0x445544, 
-                    metalness: 0.7, 
-                    roughness: 0.3 
-                });
-                const turret = new THREE.Mesh(turretGeometry, turretMaterial);
-                turret.position.set(0, dim.height/2, 0);
-                group.add(turret);
-
-                const mainCannonGeometry = new THREE.CylinderGeometry(0.3, 0.3, 2.0, 8);
-                const mainCannon = new THREE.Mesh(mainCannonGeometry, weaponMaterial);
-                mainCannon.position.set(0, dim.height/2, -dim.length/2);
-                mainCannon.rotation.set(0, 0, 0);
-                group.add(mainCannon);
-                break;
-
-            case 'drone':
-                // Add energy weapon pods
-                const podGeometry = new THREE.SphereGeometry(0.2, 8, 8);
-                const podMaterial = new THREE.MeshStandardMaterial({ 
-                    color: 0x00ccff, 
-                    metalness: 0.9, 
-                    roughness: 0.1,
-                    emissive: 0x00ccff,
-                    emissiveIntensity: 0.5
-                });
-                [-1, 1].forEach(side => {
-                    const pod = new THREE.Mesh(podGeometry, podMaterial);
-                    pod.position.set(side * dim.width/3, dim.height/2 + 0.2, -dim.length/3);
-                    group.add(pod);
-                });
-                break;
-        }
+        wheelPositions.forEach((pos, index) => {
+            const wheel = new THREE.Mesh(wheelGeometry, wheelMaterial);
+            wheel.position.set(pos.x, pos.y, pos.z);
+            wheel.rotation.z = Math.PI / 2;
+            wheel.castShadow = true;
+            wheel.name = `wheel_${index}`;
+            group.add(wheel);
+        });
 
         // Add vehicle-specific details
         switch(type) {
             case 'muscle':
                 // Add hood scoop
-                const scoopGeometry = new THREE.BoxGeometry(dim.width * 0.4, dim.height * 0.2, dim.length * 0.2);
-                const scoopMaterial = new THREE.MeshStandardMaterial({ 
-                    color: 0x000000, 
-                    metalness: 0.5, 
-                    roughness: 0.5 
+                const scoopGeometry = new THREE.BoxGeometry(dim.width * 0.4, dim.height * 0.3, dim.length * 0.2);
+                const scoopMaterial = new THREE.MeshPhysicalMaterial({ 
+                    color: 0x111111,
+                    metalness: 0.8,
+                    roughness: 0.2
                 });
                 const scoop = new THREE.Mesh(scoopGeometry, scoopMaterial);
-                scoop.position.set(0, dim.height/2, -dim.length/4);
+                scoop.position.set(0, dim.height/2, dim.length/4);
                 group.add(scoop);
-
-                // Add spoiler
-                const spoilerGeometry = new THREE.BoxGeometry(dim.width * 0.8, dim.height * 0.2, dim.length * 0.1);
-                const spoiler = new THREE.Mesh(spoilerGeometry, scoopMaterial);
-                spoiler.position.set(0, dim.height/2, dim.length/2);
-                group.add(spoiler);
                 break;
 
-            case 'ironclad':
-                // Add armor plates
-                const plateGeometry = new THREE.BoxGeometry(dim.width * 0.1, dim.height * 0.8, dim.length * 0.8);
-                const plateMaterial = new THREE.MeshStandardMaterial({ 
-                    color: 0x666666, 
-                    metalness: 0.9, 
-                    roughness: 0.1 
+            case 'tank':
+                // Add turret
+                const turretGeometry = new THREE.CylinderGeometry(dim.width * 0.3, dim.width * 0.35, dim.height, 8);
+                const turretMaterial = new THREE.MeshPhysicalMaterial({ 
+                    color: 0x3a5a3a,
+                    metalness: 0.7,
+                    roughness: 0.6
                 });
-                
-                [-1, 1].forEach(side => {
-                    const plate = new THREE.Mesh(plateGeometry, plateMaterial);
-                    plate.position.set(side * (dim.width/2 + 0.05), 0, 0);
-                    group.add(plate);
-                });
-                break;
+                const turret = new THREE.Mesh(turretGeometry, turretMaterial);
+                turret.position.set(0, dim.height/2 + dim.height * 0.3, 0);
+                group.add(turret);
 
-            case 'scorpion':
-                // Add aerodynamic fins
-                const finGeometry = new THREE.ConeGeometry(dim.height * 0.4, dim.length * 0.3, 4);
-                const finMaterial = new THREE.MeshStandardMaterial({ 
-                    color: 0x00cc66, 
-                    metalness: 0.6, 
-                    roughness: 0.4 
-                });
-                
-                [-1, 1].forEach(side => {
-                    const fin = new THREE.Mesh(finGeometry, finMaterial);
-                    fin.position.set(side * dim.width/2, dim.height/4, dim.length/3);
-                    fin.rotation.set(Math.PI/2, 0, side * Math.PI/4);
-                    group.add(fin);
-                });
+                // Add gun barrel
+                const barrelGeometry = new THREE.CylinderGeometry(0.1, 0.1, dim.length * 0.7, 8);
+                const barrel = new THREE.Mesh(barrelGeometry, turretMaterial);
+                barrel.rotation.z = Math.PI / 2;
+                barrel.position.set(0, dim.height/2 + dim.height * 0.3, dim.length * 0.3);
+                group.add(barrel);
                 break;
 
             case 'drone':
-                // Add energy field
-                const fieldGeometry = new THREE.SphereGeometry(dim.width * 0.6, 8, 8);
-                const fieldMaterial = new THREE.MeshStandardMaterial({ 
-                    color: 0x00ccff, 
-                    metalness: 0.9, 
-                    roughness: 0.1,
-                    transparent: true,
-                    opacity: 0.2
+                // Add wings
+                const wingGeometry = new THREE.BoxGeometry(dim.width * 2.5, dim.height * 0.1, dim.length * 0.3);
+                const wingMaterial = new THREE.MeshPhysicalMaterial({ 
+                    color: 0x0066cc,
+                    metalness: 0.9,
+                    roughness: 0.1
                 });
-                const field = new THREE.Mesh(fieldGeometry, fieldMaterial);
-                field.position.set(0, 0, 0);
-                group.add(field);
+                const wings = new THREE.Mesh(wingGeometry, wingMaterial);
+                wings.position.set(0, 0, 0);
+                group.add(wings);
                 break;
         }
 
-        // Add wheels
-        const wheelRadius = dim.height * 0.4;
-        const wheelGeometry = new THREE.CylinderGeometry(wheelRadius, wheelRadius, dim.width * 0.2, 32);
-        const wheelMaterial = new THREE.MeshStandardMaterial({
-            color: 0x333333,
-            metalness: 0.5,
-            roughness: 0.7
-        });
+        // Add windshield for cars
+        if (type !== 'tank' && type !== 'drone') {
+            const windshieldGeometry = new THREE.BoxGeometry(
+                dim.width * 0.7,
+                dim.height * 0.4,
+                dim.length * 0.3
+            );
+            const windshieldMaterial = new THREE.MeshPhysicalMaterial({
+                color: 0x111111,
+                metalness: 0.9,
+                roughness: 0.2,
+                transparent: true,
+                opacity: 0.7,
+                transmission: 0.5
+            });
+            const windshield = new THREE.Mesh(windshieldGeometry, windshieldMaterial);
+            windshield.position.set(0, dim.height/2 + dim.height * 0.1, dim.length/6);
+            group.add(windshield);
+        }
 
-        const wheelPositions = [
-            { x: -dim.width/2, y: -dim.height/2, z: -dim.length/3 }, // Front left
-            { x: dim.width/2, y: -dim.height/2, z: -dim.length/3 },  // Front right
-            { x: -dim.width/2, y: -dim.height/2, z: dim.length/3 },  // Rear left
-            { x: dim.width/2, y: -dim.height/2, z: dim.length/3 }    // Rear right
-        ];
+        // Add headlights
+        if (type !== 'drone') {
+            const headlightGeometry = new THREE.CircleGeometry(0.15, 16);
+            const headlightMaterial = new THREE.MeshPhysicalMaterial({
+                color: 0xffffee,
+                emissive: 0xffffee,
+                emissiveIntensity: 1,
+                metalness: 0.9,
+                roughness: 0.1
+            });
 
-        wheelPositions.forEach(pos => {
-            const wheel = new THREE.Mesh(wheelGeometry, wheelMaterial);
-            wheel.position.set(pos.x, pos.y, pos.z);
-            wheel.rotation.set(0, 0, Math.PI/2);
-            wheel.castShadow = true;
-            group.add(wheel);
-        });
+            // Left headlight
+            const leftHeadlight = new THREE.Mesh(headlightGeometry, headlightMaterial);
+            leftHeadlight.position.set(-dim.width/3, 0, dim.length/2 - 0.1);
+            leftHeadlight.rotation.y = Math.PI;
+            group.add(leftHeadlight);
 
-        // Rotate the entire group 180 degrees to fix orientation
-        group.rotation.y = Math.PI;
+            // Right headlight
+            const rightHeadlight = new THREE.Mesh(headlightGeometry, headlightMaterial);
+            rightHeadlight.position.set(dim.width/3, 0, dim.length/2 - 0.1);
+            rightHeadlight.rotation.y = Math.PI;
+            group.add(rightHeadlight);
+        }
 
+        // Add debug axes helper in development
+        if (process.env.NODE_ENV === 'development') {
+            const axesHelper = new THREE.AxesHelper(2);
+            group.add(axesHelper);
+        }
+
+        // Ensure the group is properly positioned
+        group.position.copy(bodyMesh.position);
+        
         return group;
-    }
-
-    addWheels(vehicle, type) {
-        const wheelConfigs = {
-            muscle: {
-                radius: 0.4,
-                width: 0.3,
-                suspensionStiffness: 30,        // Reduced stiffness
-                suspensionRestLength: 0.4,      // Increased rest length
-                frictionSlip: 2.5,              // Reduced for better initial traction
-                dampingRelaxation: 2.5,
-                dampingCompression: 4.4,
-                maxSuspensionForce: 100000,
-                rollInfluence: 0.01
-            },
-            ironclad: {
-                radius: 0.45,
-                width: 0.35,
-                suspensionStiffness: 35,
-                suspensionRestLength: 0.45,
-                frictionSlip: 2.0,
-                dampingRelaxation: 3.0,
-                dampingCompression: 4.8,
-                maxSuspensionForce: 120000,
-                rollInfluence: 0.008
-            },
-            scorpion: {
-                radius: 0.35,
-                width: 0.25,
-                suspensionStiffness: 25,
-                suspensionRestLength: 0.35,
-                frictionSlip: 3.0,
-                dampingRelaxation: 2.3,
-                dampingCompression: 4.2,
-                maxSuspensionForce: 90000,
-                rollInfluence: 0.012
-            },
-            tank: {
-                radius: 0.5,
-                width: 0.4,
-                suspensionStiffness: 40,
-                suspensionRestLength: 0.5,
-                frictionSlip: 1.5,
-                dampingRelaxation: 3.5,
-                dampingCompression: 5.0,
-                maxSuspensionForce: 150000,
-                rollInfluence: 0.005
-            },
-            drone: {
-                radius: 0.3,
-                width: 0.2,
-                suspensionStiffness: 20,
-                suspensionRestLength: 0.3,
-                frictionSlip: 3.5,
-                dampingRelaxation: 2.0,
-                dampingCompression: 4.0,
-                maxSuspensionForce: 80000,
-                rollInfluence: 0.015
-            }
-        };
-
-        const config = wheelConfigs[type] || wheelConfigs.muscle;
-
-        // Wheel connection points - Adjusted to match physics shape
-        const wheelPositions = {
-            muscle: { width: 1.1, height: 0, frontZ: 1.2, backZ: -1.2 },
-            ironclad: { width: 1.3, height: 0, frontZ: 1.3, backZ: -1.3 },
-            scorpion: { width: 1.0, height: 0, frontZ: 1.1, backZ: -1.1 },
-            tank: { width: 1.5, height: 0, frontZ: 1.4, backZ: -1.4 },
-            drone: { width: 0.9, height: 0, frontZ: 1.0, backZ: -1.0 }
-        };
-
-        const pos = wheelPositions[type] || wheelPositions.muscle;
-
-        const wheelOptions = {
-            radius: config.radius,
-            directionLocal: new CANNON.Vec3(0, -1, 0),
-            suspensionStiffness: config.suspensionStiffness,
-            suspensionRestLength: config.suspensionRestLength,
-            frictionSlip: config.frictionSlip,
-            dampingRelaxation: config.dampingRelaxation,
-            dampingCompression: config.dampingCompression,
-            maxSuspensionForce: config.maxSuspensionForce,
-            rollInfluence: config.rollInfluence,
-            axleLocal: new CANNON.Vec3(1, 0, 0),
-            chassisConnectionPointLocal: new CANNON.Vec3(1, 0, 1),
-            maxSuspensionTravel: 0.4,          // Increased travel
-            customSlidingRotationalSpeed: -30,
-            useCustomSlidingRotationalSpeed: true
-        };
-
-        // Add front left wheel
-        wheelOptions.chassisConnectionPointLocal.set(-pos.width, pos.height, pos.frontZ);
-        vehicle.addWheel(wheelOptions);
-
-        // Add front right wheel
-        wheelOptions.chassisConnectionPointLocal.set(pos.width, pos.height, pos.frontZ);
-        vehicle.addWheel(wheelOptions);
-
-        // Add rear left wheel
-        wheelOptions.chassisConnectionPointLocal.set(-pos.width, pos.height, pos.backZ);
-        wheelOptions.isFrontWheel = false;
-        vehicle.addWheel(wheelOptions);
-
-        // Add rear right wheel
-        wheelOptions.chassisConnectionPointLocal.set(pos.width, pos.height, pos.backZ);
-        vehicle.addWheel(wheelOptions);
-
-        // Apply vehicle-specific wheel adjustments
-        vehicle.wheelInfos.forEach((wheel, index) => {
-            if (type === 'tank') {
-                // Tanks have better traction and can climb steeper terrain
-                wheel.frictionSlip *= 1.5;
-                wheel.maxSuspensionForce *= 1.3;
-            } else if (type === 'scorpion') {
-                // Scorpion has better handling
-                wheel.rollInfluence *= 0.8;
-                if (index < 2) wheel.steerValue *= 1.2; // Increase front wheel steering
-            } else if (type === 'ironclad') {
-                // Ironclad is more stable
-                wheel.rollInfluence *= 0.7;
-                wheel.maxSuspensionForce *= 1.2;
-            }
-        });
     }
 
     update(deltaTime) {
         for (const entity of this.vehicles.values()) {
             const input = entity.getComponent(InputComponent);
             const physicsBody = entity.getComponent(PhysicsBody);
-            const vehicleControls = entity.getComponent(VehicleControls);
+            const vehicleControls = entity.getComponent(VehicleControlsComponent);
             const meshComponent = entity.getComponent(MeshComponent);
 
             if (!input || !physicsBody || !vehicleControls || !meshComponent) continue;
 
-            // Update input state
-            input.update();
+            const hasSettled = Math.abs(physicsBody.body.velocity.y) < 0.5;
+            
+            // Reset forces first
+            for (let i = 0; i < physicsBody.vehicle.wheelInfos.length; i++) {
+                physicsBody.vehicle.setBrake(0, i);
+                physicsBody.vehicle.applyEngineForce(0, i);
+            }
 
-            // Update vehicle controls
-            vehicleControls.update(input, physicsBody);
+            const REAR_WHEELS = [2, 3];
+            let forcesApplied = false;
+            let currentForce = 0;
 
-            // Update mesh position and rotation
+            if (hasSettled) {
+                if (input.forward) {
+                    const force = input.boost ? this.boostForce : this.normalForce;
+                    currentForce = -force;  // Negative force for forward (reversed)
+                    forcesApplied = true;
+                    REAR_WHEELS.forEach(wheelIndex => {
+                        physicsBody.vehicle.applyEngineForce(-force, wheelIndex);
+                    });
+                } else if (input.backward) {
+                    currentForce = this.reverseForce;  // Positive force for reverse (reversed)
+                    forcesApplied = true;
+                    REAR_WHEELS.forEach(wheelIndex => {
+                        physicsBody.vehicle.applyEngineForce(this.reverseForce, wheelIndex);
+                    });
+                } else {
+                    // Apply rolling resistance when no input
+                    const speed = physicsBody.body.velocity.length();
+                    if (speed > 0.1) {
+                        const resistance = Math.min(this.rollingResistance, speed * 100);
+                        for (let i = 0; i < physicsBody.vehicle.wheelInfos.length; i++) {
+                            physicsBody.vehicle.setBrake(resistance, i);
+                        }
+                    }
+                }
+
+                // Log detailed vehicle state when forces are applied
+                if (forcesApplied) {
+                    console.log('Vehicle physics state:', {
+                        force: currentForce,
+                        position: {
+                            x: physicsBody.position.x.toFixed(2),
+                            y: physicsBody.position.y.toFixed(2),
+                            z: physicsBody.position.z.toFixed(2)
+                        },
+                        rotation: {
+                            x: physicsBody.quaternion.x.toFixed(2),
+                            y: physicsBody.quaternion.y.toFixed(2),
+                            z: physicsBody.quaternion.z.toFixed(2),
+                            w: physicsBody.quaternion.w.toFixed(2)
+                        },
+                        velocity: {
+                            x: physicsBody.velocity.x.toFixed(2),
+                            y: physicsBody.velocity.y.toFixed(2),
+                            z: physicsBody.velocity.z.toFixed(2)
+                        },
+                        wheelsInContact: physicsBody.vehicle.wheelInfos.filter(w => w.isInContact).length,
+                        speed: physicsBody.velocity.length().toFixed(2)
+                    });
+                }
+
+                // Apply steering based on input
+                let steering = 0;
+                if (input.left) {
+                    steering = this.maxSteerVal;
+                    physicsBody.vehicle.setSteeringValue(this.maxSteerVal, 0);
+                    physicsBody.vehicle.setSteeringValue(this.maxSteerVal, 1);
+                } else if (input.right) {
+                    steering = -this.maxSteerVal;
+                    physicsBody.vehicle.setSteeringValue(-this.maxSteerVal, 0);
+                    physicsBody.vehicle.setSteeringValue(-this.maxSteerVal, 1);
+                } else {
+                    physicsBody.vehicle.setSteeringValue(0, 0);
+                    physicsBody.vehicle.setSteeringValue(0, 1);
+                }
+            }
+
+            // Update mesh position and rotation from physics body
             if (physicsBody.body) {
                 meshComponent.mesh.position.copy(physicsBody.body.position);
                 meshComponent.mesh.quaternion.copy(physicsBody.body.quaternion);
             }
         }
+        this.debugFrameCount++;
     }
 
     handleCollision(entity, otherEntity, event) {

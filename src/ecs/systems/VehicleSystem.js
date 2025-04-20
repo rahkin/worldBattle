@@ -13,20 +13,23 @@ import * as CANNON from 'cannon-es';
 export class VehicleSystem extends System {
     constructor(scene, physicsWorld) {
         super();
-        this.requiredComponents = [VehicleComponent, PhysicsBody, MeshComponent, VehicleControlsComponent];
+        this.requiredComponents = ['VehicleComponent', 'PhysicsBody', 'MeshComponent', 'InputComponent'];
         this.scene = scene;
         this.physicsWorld = physicsWorld;
         this.vehicles = new Map();
         
         // Basic vehicle physics constants
         this.maxSteerVal = 0.5;
-        this.normalForce = 4000;
-        this.boostForce = 6000;
-        this.reverseForce = 2000;
-        this.brakeForce = 100;
-        this.rollingResistance = 50;
+        this.normalForce = 2000;    // Reduced from 4000 for smoother acceleration
+        this.boostForce = 3000;     // Reduced from 6000
+        this.reverseForce = 1000;   // Reduced from 2000
+        this.brakeForce = 50;       // Reduced from 100
+        this.rollingResistance = 25; // Reduced from 50
         this.turnSpeed = 2.0;
-        this.maxSpeed = 100;
+        this.maxSpeed = 80;         // Reduced from 100
+        
+        // Debug counter
+        this.debugFrameCount = 0;
     }
 
     async init(world) {
@@ -88,11 +91,14 @@ export class VehicleSystem extends System {
         const body = new CANNON.Body({
             mass: this.getVehicleMass(type),
             shape: shape,
-            position: new CANNON.Vec3(position.x, position.y, position.z),
+            position: new CANNON.Vec3(position.x, position.y + 0.2, position.z), // Lower initial position
             material: new CANNON.Material('vehicleMaterial'),
-            linearDamping: 0.1,
-            angularDamping: 0.1
+            linearDamping: 0.2,
+            angularDamping: 0.2
         });
+
+        // Add body to physics world immediately
+        this.physicsWorld.addBody(body);
 
         // Create vehicle with proper axis configuration
         const vehicle = new CANNON.RaycastVehicle({
@@ -106,24 +112,24 @@ export class VehicleSystem extends System {
         const wheelOptions = {
             radius: 0.3,
             directionLocal: new CANNON.Vec3(0, -1, 0),
-            suspensionStiffness: 30,
-            suspensionRestLength: 0.2,
-            frictionSlip: 2.0,
-            dampingRelaxation: 2.3,
-            dampingCompression: 4.4,
-            maxSuspensionForce: 100000,
-            rollInfluence: 0.01,
+            suspensionStiffness: 25,  // Reduced from 30 for smoother ride
+            suspensionRestLength: 0.3, // Increased from 0.2 to raise vehicle
+            frictionSlip: 1.5,        // Reduced from 2.0 for less jerky movement
+            dampingRelaxation: 2.5,   // Adjusted for smoother suspension
+            dampingCompression: 2.5,  // Adjusted for smoother suspension
+            maxSuspensionForce: 50000, // Reduced from 100000
+            rollInfluence: 0.05,      // Increased from 0.01 for better stability
             axleLocal: new CANNON.Vec3(1, 0, 0),
             chassisConnectionPointLocal: new CANNON.Vec3(1, 0, 1),
-            maxSuspensionTravel: 0.2,
-            customSlidingRotationalSpeed: -30,
+            maxSuspensionTravel: 0.3, // Increased from 0.2
+            customSlidingRotationalSpeed: -20, // Reduced from -30
             useCustomSlidingRotationalSpeed: true
         };
 
         // Add wheels at proper positions
         const FRONT_AXLE = -1.0;
         const REAR_AXLE = 1.0;
-        const WHEEL_Y = 0.0;
+        const WHEEL_Y = -0.5;  // Lowered from -0.4 to -0.5 for better wheel positioning
         const WHEEL_X = 0.8;
 
         // Front left
@@ -149,29 +155,20 @@ export class VehicleSystem extends System {
         const physicsBody = new PhysicsBody(body, vehicle);
         entity.addComponent(physicsBody);
 
-        // Add vehicle controls
-        const vehicleControls = new VehicleControlsComponent();
-        entity.addComponent(vehicleControls);
-
         // Add input component
         const inputComponent = new InputComponent();
         entity.addComponent(inputComponent);
 
-        // Store vehicle reference
+        // Store vehicle reference and log debug info
         this.vehicles.set(entity.id, entity);
-
-        console.log('Vehicle created successfully:', {
-            type,
-            position: body.position,
-            mass: body.mass,
-            components: {
-                vehicle: !!vehicleComponent,
-                mesh: !!meshComponent,
-                physics: !!physicsBody,
-                controls: !!vehicleControls,
-                input: !!inputComponent
-            },
-            wheels: vehicle.wheelInfos.length
+        
+        console.log('Vehicle components status:', {
+            hasVehicleComponent: entity.hasComponent('VehicleComponent'),
+            hasPhysicsBody: entity.hasComponent('PhysicsBody'),
+            hasMeshComponent: entity.hasComponent('MeshComponent'),
+            hasInputComponent: entity.hasComponent('InputComponent'),
+            entityId: entity.id,
+            vehiclesMapSize: this.vehicles.size
         });
 
         return entity;
@@ -191,7 +188,7 @@ export class VehicleSystem extends System {
     getVehicleMass(type) {
         const masses = {
             muscle: 1000,
-            ironclad: 1200,
+            ironclad: 1500,
             scorpion: 800,
             tank: 2000,
             drone: 500
@@ -398,95 +395,113 @@ export class VehicleSystem extends System {
 
     update(deltaTime) {
         for (const entity of this.vehicles.values()) {
-            const input = entity.getComponent(InputComponent);
-            const physicsBody = entity.getComponent(PhysicsBody);
-            const vehicleControls = entity.getComponent(VehicleControlsComponent);
-            const meshComponent = entity.getComponent(MeshComponent);
+            // Log component presence for debugging
+            console.log('Vehicle update - Entity components:', {
+                entityId: entity.id,
+                hasInput: entity.hasComponent('InputComponent'),
+                hasPhysicsBody: entity.hasComponent('PhysicsBody'),
+                hasVehicleComponent: entity.hasComponent('VehicleComponent'),
+                hasMeshComponent: entity.hasComponent('MeshComponent')
+            });
 
-            if (!input || !physicsBody || !vehicleControls || !meshComponent) continue;
+            const input = entity.getComponent('InputComponent');
+            const physicsBody = entity.getComponent('PhysicsBody');
+            const vehicleComponent = entity.getComponent('VehicleComponent');
+            const meshComponent = entity.getComponent('MeshComponent');
 
-            const hasSettled = Math.abs(physicsBody.body.velocity.y) < 0.5;
-            
+            if (!input || !physicsBody || !vehicleComponent || !meshComponent) {
+                console.warn('Missing required components for vehicle update:', {
+                    hasInput: !!input,
+                    hasPhysicsBody: !!physicsBody,
+                    hasVehicleComponent: !!vehicleComponent,
+                    hasMeshComponent: !!meshComponent,
+                    entityId: entity.id
+                });
+                continue;
+            }
+
             // Reset forces first
             for (let i = 0; i < physicsBody.vehicle.wheelInfos.length; i++) {
                 physicsBody.vehicle.setBrake(0, i);
-                physicsBody.vehicle.applyEngineForce(0, i);
             }
 
             const REAR_WHEELS = [2, 3];
-            let forcesApplied = false;
-            let currentForce = 0;
+            const FRONT_WHEELS = [0, 1];
 
-            if (hasSettled) {
-                if (input.forward) {
-                    const force = input.boost ? this.boostForce : this.normalForce;
-                    currentForce = -force;  // Negative force for forward (reversed)
-                    forcesApplied = true;
-                    REAR_WHEELS.forEach(wheelIndex => {
-                        physicsBody.vehicle.applyEngineForce(-force, wheelIndex);
-                    });
-                } else if (input.backward) {
-                    currentForce = this.reverseForce;  // Positive force for reverse (reversed)
-                    forcesApplied = true;
-                    REAR_WHEELS.forEach(wheelIndex => {
-                        physicsBody.vehicle.applyEngineForce(this.reverseForce, wheelIndex);
-                    });
-                } else {
-                    // Apply rolling resistance when no input
-                    const speed = physicsBody.body.velocity.length();
-                    if (speed > 0.1) {
-                        const resistance = Math.min(this.rollingResistance, speed * 100);
-                        for (let i = 0; i < physicsBody.vehicle.wheelInfos.length; i++) {
-                            physicsBody.vehicle.setBrake(resistance, i);
-                        }
-                    }
-                }
+            // Calculate mass-adjusted forces
+            const mass = physicsBody.body.mass;
+            const massMultiplier = Math.sqrt(mass / 1000); // Square root scaling for better heavy vehicle handling
 
-                // Log detailed vehicle state when forces are applied
-                if (forcesApplied) {
-                    console.log('Vehicle physics state:', {
-                        force: currentForce,
-                        position: {
-                            x: physicsBody.position.x.toFixed(2),
-                            y: physicsBody.position.y.toFixed(2),
-                            z: physicsBody.position.z.toFixed(2)
-                        },
-                        rotation: {
-                            x: physicsBody.quaternion.x.toFixed(2),
-                            y: physicsBody.quaternion.y.toFixed(2),
-                            z: physicsBody.quaternion.z.toFixed(2),
-                            w: physicsBody.quaternion.w.toFixed(2)
-                        },
-                        velocity: {
-                            x: physicsBody.velocity.x.toFixed(2),
-                            y: physicsBody.velocity.y.toFixed(2),
-                            z: physicsBody.velocity.z.toFixed(2)
-                        },
-                        wheelsInContact: physicsBody.vehicle.wheelInfos.filter(w => w.isInContact).length,
-                        speed: physicsBody.velocity.length().toFixed(2)
-                    });
-                }
-
-                // Apply steering based on input
-                let steering = 0;
-                if (input.left) {
-                    steering = this.maxSteerVal;
-                    physicsBody.vehicle.setSteeringValue(this.maxSteerVal, 0);
-                    physicsBody.vehicle.setSteeringValue(this.maxSteerVal, 1);
-                } else if (input.right) {
-                    steering = -this.maxSteerVal;
-                    physicsBody.vehicle.setSteeringValue(-this.maxSteerVal, 0);
-                    physicsBody.vehicle.setSteeringValue(-this.maxSteerVal, 1);
-                } else {
-                    physicsBody.vehicle.setSteeringValue(0, 0);
-                    physicsBody.vehicle.setSteeringValue(0, 1);
-                }
+            // Calculate engine force based on input state with mass adjustment
+            let engineForce = 0;
+            if (input.forward) {
+                engineForce = this.normalForce * massMultiplier * (input.boost ? 1.5 : 1.0);
+            } else if (input.backward) {
+                engineForce = -this.reverseForce * massMultiplier;
             }
+
+            // Calculate steering force based on input state
+            let steeringForce = 0;
+            if (input.left) {
+                steeringForce = this.maxSteerVal / Math.max(1, Math.log10(massMultiplier)); // Reduce steering for heavier vehicles
+            } else if (input.right) {
+                steeringForce = -this.maxSteerVal / Math.max(1, Math.log10(massMultiplier));
+            }
+
+            // Calculate brake force with mass adjustment
+            let brakeForce = input.brake ? this.brakeForce * massMultiplier : 0;
+
+            // Apply rolling resistance when no input, scaled with mass
+            if (!input.forward && !input.backward) {
+                brakeForce = this.rollingResistance * Math.sqrt(massMultiplier);
+            }
+
+            // Get current velocity for force adjustment
+            const velocity = physicsBody.body.velocity.length();
+            const maxVelocity = this.maxSpeed / massMultiplier;
+
+            // Apply velocity-based force reduction
+            if (velocity > maxVelocity * 0.75) {
+                const reduction = 1 - (velocity - maxVelocity * 0.75) / (maxVelocity * 0.25);
+                engineForce *= Math.max(0.1, reduction);
+            }
+
+            // Apply forces to wheels
+            REAR_WHEELS.forEach(wheelIndex => {
+                physicsBody.vehicle.applyEngineForce(engineForce, wheelIndex);
+                physicsBody.vehicle.setBrake(brakeForce, wheelIndex);
+            });
+
+            FRONT_WHEELS.forEach(wheelIndex => {
+                physicsBody.vehicle.setSteeringValue(steeringForce, wheelIndex);
+                physicsBody.vehicle.setBrake(brakeForce, wheelIndex);
+            });
 
             // Update mesh position and rotation from physics body
             if (physicsBody.body) {
                 meshComponent.mesh.position.copy(physicsBody.body.position);
                 meshComponent.mesh.quaternion.copy(physicsBody.body.quaternion);
+            }
+
+            // Debug logging for vehicle state
+            if (input.hasChanged()) {
+                console.log('Vehicle state:', {
+                    type: vehicleComponent.type,
+                    mass: mass,
+                    massMultiplier: massMultiplier,
+                    forward: input.forward,
+                    backward: input.backward,
+                    left: input.left,
+                    right: input.right,
+                    brake: input.brake,
+                    boost: input.boost,
+                    engineForce: engineForce,
+                    steeringForce: steeringForce,
+                    brakeForce: brakeForce,
+                    velocity: velocity,
+                    position: physicsBody.body.position.toArray(),
+                    wheelsInContact: physicsBody.vehicle.wheelInfos.filter(w => w.isInContact).length
+                });
             }
         }
         this.debugFrameCount++;
@@ -496,12 +511,15 @@ export class VehicleSystem extends System {
         const impactForce = event.contact.getImpactVelocityAlongNormal();
         if (Math.abs(impactForce) > 5) {
             // Play impact sound
-            this.world.getSystem(AudioSystem)?.playSound('impact', {
-                volume: Math.min(Math.abs(impactForce) / 10, 1)
-            });
+            const audioSystem = this.world.getSystem('AudioSystem');
+            if (audioSystem) {
+                audioSystem.playSound('impact', {
+                    volume: Math.min(Math.abs(impactForce) / 10, 1)
+                });
+            }
 
             // Apply damage based on impact force
-            const vehicleComponent = entity.getComponent(VehicleComponent);
+            const vehicleComponent = entity.getComponent('VehicleComponent');
             if (vehicleComponent) {
                 const damage = Math.abs(impactForce) * (1 - vehicleComponent.damageResistance);
                 vehicleComponent.health -= damage;

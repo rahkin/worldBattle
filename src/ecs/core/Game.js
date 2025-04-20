@@ -50,18 +50,21 @@ export class Game {
             this.physicsSystem = new PhysicsSystem();
             await this.physicsSystem.init();
 
-            // Initialize other systems with scene and physics references
-            this.vehicleSystem = new VehicleSystem(this.sceneManager.getScene(), this.physicsSystem.world);
-            await this.vehicleSystem.init();
-
+            // Create terrain system
             this.terrainSystem = new TerrainSystem(this.sceneManager.getScene(), this.physicsSystem.world);
             await this.terrainSystem.init();
+
+            // Create vehicle system
+            this.vehicleSystem = new VehicleSystem(this.sceneManager.getScene(), this.physicsSystem.world);
 
             // Add systems to world
             this.world.addSystem(this.sceneManager);
             this.world.addSystem(this.physicsSystem);
-            this.world.addSystem(this.vehicleSystem);
             this.world.addSystem(this.terrainSystem);
+            this.world.addSystem(this.vehicleSystem);
+
+            // Initialize systems that need world reference
+            await this.vehicleSystem.init(this.world);
 
             // Initialize camera controller
             this.cameraController = new CameraController(

@@ -29,11 +29,19 @@ export class VehicleSystem extends System {
         this.maxSpeed = 100;
     }
 
-    init(world) {
-        super.init(world);
-        if (!this.world) {
-            throw new Error('World not initialized in VehicleSystem');
+    async init(world) {
+        if (!world) {
+            console.warn('World not provided to VehicleSystem init');
+            return Promise.resolve();
         }
+        
+        this.world = world;
+        console.log('VehicleSystem initialized with world:', {
+            hasWorld: !!this.world,
+            scene: !!this.scene,
+            physicsWorld: !!this.physicsWorld
+        });
+        
         return Promise.resolve();
     }
 

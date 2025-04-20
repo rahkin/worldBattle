@@ -1,4 +1,4 @@
-import { Game } from './core/Game.js';
+import { Game } from './ecs/core/Game.js';
 
 let game = null;
 

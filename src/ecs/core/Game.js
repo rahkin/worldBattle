@@ -1,14 +1,14 @@
 import * as THREE from 'three';
 import { World } from './World.js';
-import { EventBus } from './EventBus.js';
-import { SceneManager } from '../ecs/systems/SceneManager.js';
-import { VehicleSystem } from '../ecs/systems/VehicleSystem.js';
-import { PhysicsSystem } from '../ecs/systems/PhysicsSystem.js';
-import { CameraController } from './CameraController.js';
-import { TerrainSystem } from '../ecs/systems/TerrainSystem.js';
-import { ResourceSystem } from '../ecs/systems/ResourceSystem.js';
+import { EventBus } from '../../core/EventBus.js';
+import { SceneManager } from '../systems/SceneManager.js';
+import { VehicleSystem } from '../systems/VehicleSystem.js';
+import { PhysicsSystem } from '../systems/PhysicsSystem.js';
+import { CameraController } from '../systems/CameraController.js';
+import { TerrainSystem } from '../systems/TerrainSystem.js';
+import { ResourceSystem } from '../systems/ResourceSystem.js';
 import * as CANNON from 'cannon-es';
-import { TerrainComponent } from '../ecs/components/TerrainComponent.js';
+import { TerrainComponent } from '../components/TerrainComponent.js';
 
 export class Game {
     constructor(options = {}) {

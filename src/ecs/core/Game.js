@@ -4,11 +4,13 @@ import { EventBus } from '../../core/EventBus.js';
 import { SceneManager } from '../systems/SceneManager.js';
 import { VehicleSystem } from '../systems/VehicleSystem.js';
 import { PhysicsSystem } from '../systems/PhysicsSystem.js';
+import { InputSystem } from '../systems/InputSystem.js';
 import { CameraController } from '../systems/CameraController.js';
 import { TerrainSystem } from '../systems/TerrainSystem.js';
 import { ResourceSystem } from '../systems/ResourceSystem.js';
 import * as CANNON from 'cannon-es';
 import { TerrainComponent } from '../components/TerrainComponent.js';
+import { VehicleSelection } from '../../ui/VehicleSelection.js';
 
 export class Game {
     constructor(options = {}) {
@@ -33,6 +35,8 @@ export class Game {
         this.physicsWorld = null;
         this.cameraController = null;
         this.playerVehicle = null;
+        this.vehicleSelection = null;
+        this.inputSystem = null;
     }
 
     async init() {
@@ -43,51 +47,76 @@ export class Game {
             this.sceneManager = new SceneManager();
             await this.sceneManager.init();
             
-            // Add renderer to document
-            document.body.appendChild(this.sceneManager.getRenderer().domElement);
+            // Add renderer to document and set up display
+            const renderer = this.sceneManager.getRenderer();
+            if (!renderer) {
+                throw new Error('Failed to get renderer from SceneManager');
+            }
+            renderer.domElement.style.position = 'absolute';
+            renderer.domElement.style.top = '0';
+            renderer.domElement.style.left = '0';
+            document.body.appendChild(renderer.domElement);
 
             // Initialize physics system
             this.physicsSystem = new PhysicsSystem();
             await this.physicsSystem.init();
 
             // Create terrain system
-            this.terrainSystem = new TerrainSystem(this.sceneManager.getScene(), this.physicsSystem.world);
-            await this.terrainSystem.init();
+            this.terrainSystem = new TerrainSystem(
+                this.sceneManager.getScene(),
+                this.physicsSystem.physicsWorld
+            );
 
             // Create vehicle system
-            this.vehicleSystem = new VehicleSystem(this.sceneManager.getScene(), this.physicsSystem.world);
+            this.vehicleSystem = new VehicleSystem(
+                this.sceneManager.getScene(),
+                this.physicsSystem.physicsWorld
+            );
+
+            // Create input system
+            this.inputSystem = new InputSystem();
 
             // Add systems to world
             this.world.addSystem(this.sceneManager);
             this.world.addSystem(this.physicsSystem);
             this.world.addSystem(this.terrainSystem);
             this.world.addSystem(this.vehicleSystem);
+            this.world.addSystem(this.inputSystem);
 
             // Initialize systems that need world reference
+            await this.terrainSystem.init(this.world);
             await this.vehicleSystem.init(this.world);
 
-            // Initialize camera controller
+            // Initialize camera controller with a temporary target
+            const tempTarget = new THREE.Object3D();
+            tempTarget.position.set(0, 2, 0);
+            tempTarget.quaternion.setFromEuler(new THREE.Euler(0, 0, 0));
+            
             this.cameraController = new CameraController(
                 this.sceneManager.getCamera(),
-                new THREE.Vector3(0, 2, 0),  // Initial target position
-                { 
-                    distance: 10,
-                    height: 5,
-                    damping: 0.1
-                }
+                tempTarget,
+                { distance: 10, height: 5 }
             );
 
-            console.log('Game initialized successfully:', {
-                systems: this.world.systems.length,
-                scene: !!this.sceneManager.getScene(),
-                physics: !!this.physicsSystem.world,
-                camera: !!this.sceneManager.getCamera()
-            });
+            // Set up vehicle selection UI if not in test mode
+            if (!this.isTest) {
+                this.vehicleSelection = new VehicleSelection({ eventBus: this.eventBus });
+                await this.vehicleSelection.init();
+                
+                // Listen for vehicle selection
+                this.eventBus.on('vehicleSelected', async (data) => {
+                    console.log('Vehicle selected:', data);
+                    await this.selectVehicle(data.vehicleType);
+                });
+                
+                // Show vehicle selection screen
+                this.vehicleSelection.show();
+            }
 
-            return true;
+            console.log('Game initialization complete');
         } catch (error) {
             console.error('Failed to initialize game:', error);
-            return false;
+            throw error;
         }
     }
 
@@ -196,6 +225,18 @@ export class Game {
         this.lastTime = currentTime;
 
         try {
+            // Debug log scene state
+            if (this.sceneManager) {
+                const scene = this.sceneManager.getScene();
+                const camera = this.sceneManager.getCamera();
+                console.log('Game update - Scene state:', {
+                    hasScene: !!scene,
+                    hasCamera: !!camera,
+                    cameraPosition: camera ? camera.position.toArray() : null,
+                    sceneChildren: scene ? scene.children.length : 0
+                });
+            }
+
             // Update world systems
             this.world.update(deltaTime);
 
@@ -204,8 +245,18 @@ export class Game {
                 this.cameraController.update(deltaTime);
             }
 
+            // Ensure we have all required components for rendering
+            if (!this.sceneManager || !this.sceneManager.getScene() || !this.sceneManager.getCamera()) {
+                console.error('Missing required components for rendering:', {
+                    hasSceneManager: !!this.sceneManager,
+                    hasScene: this.sceneManager ? !!this.sceneManager.getScene() : false,
+                    hasCamera: this.sceneManager ? !!this.sceneManager.getCamera() : false
+                });
+                return;
+            }
+
             // Render scene
-            this.sceneManager.render(this.sceneManager.getCamera());
+            this.sceneManager.render();
 
             // Schedule next frame
             this.animationFrameId = requestAnimationFrame(() => this.update());
@@ -216,12 +267,15 @@ export class Game {
     }
 
     render() {
-        if (this.renderer && this.scene && this.camera) {
-            try {
-                this.sceneManager.render(this.camera);
-            } catch (error) {
-                console.error('Error in render:', error);
-            }
+        if (!this.sceneManager) {
+            console.error('Cannot render: SceneManager is null');
+            return;
+        }
+
+        try {
+            this.sceneManager.render();
+        } catch (error) {
+            console.error('Error in render:', error);
         }
     }
 
@@ -263,31 +317,49 @@ export class Game {
         this.scene = null;
         this.camera = null;
         this.renderer = null;
+
+        if (this.vehicleSelection) {
+            this.vehicleSelection.cleanup();
+            this.vehicleSelection = null;
+        }
     }
 
-    async spawnVehicle(type = 'muscle', position = new THREE.Vector3(0, 2, 0)) {
-        console.log('Spawning vehicle:', { type, position });
-        
+    async selectVehicle(vehicleType) {
+        console.log('Selecting vehicle:', vehicleType);
         try {
-            // Create vehicle
-            this.playerVehicle = await this.vehicleSystem.createVehicle(type, position);
+            // Create spawn position slightly above ground
+            const spawnPosition = new THREE.Vector3(0, 2, 0);
             
-            if (!this.playerVehicle) {
+            // Spawn the vehicle
+            const vehicle = await this.vehicleSystem.createVehicle(vehicleType, spawnPosition);
+            if (!vehicle) {
                 throw new Error('Failed to create vehicle');
             }
 
-            // Update camera target
-            if (this.cameraController) {
-                this.cameraController.setTarget(this.playerVehicle.mesh);
-                console.log('Camera target set to vehicle:', {
-                    vehicleId: this.playerVehicle.id,
-                    position: this.playerVehicle.mesh.position.toArray()
-                });
+            // Store as player vehicle
+            this.playerVehicle = vehicle;
+
+            // Get the vehicle's mesh component
+            const meshComponent = vehicle.getComponent('MeshComponent');
+            if (!meshComponent || !meshComponent.mesh) {
+                throw new Error('Vehicle has no mesh component');
             }
 
-            return this.playerVehicle;
+            // Update camera target to the vehicle's mesh
+            this.cameraController.setTarget(meshComponent.mesh);
+            
+            // Start the game loop
+            this.start();
+
+            console.log('Vehicle spawned successfully:', {
+                type: vehicleType,
+                position: spawnPosition,
+                entityId: vehicle.id
+            });
+
+            return vehicle;
         } catch (error) {
-            console.error('Failed to spawn vehicle:', error);
+            console.error('Error selecting vehicle:', error);
             return null;
         }
     }

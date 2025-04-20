@@ -4,34 +4,40 @@ import * as THREE from 'three';
 import * as CANNON from 'cannon-es';
 
 export class TerrainSystem extends System {
-    constructor() {
+    constructor(scene, physicsWorld) {
         super();
+        this.scene = scene;
+        this.physicsWorld = physicsWorld;
         this.terrainBodies = new Map();
         this.terrainMeshes = new Map();
         this.terrainSize = 100;
         this.terrainResolution = 50;
         this.terrainHeight = 0.1; // Match the ground plane height
+        
+        console.log('TerrainSystem constructed with:', {
+            hasScene: !!this.scene,
+            hasPhysicsWorld: !!this.physicsWorld
+        });
     }
 
     init() {
-        // Get physics system reference
-        const physicsSystem = this.world.getSystem('PhysicsSystem');
-        if (!physicsSystem || !physicsSystem.physicsWorld) {
-            throw new Error('PhysicsSystem not initialized');
+        console.log('TerrainSystem initializing...');
+        
+        if (!this.scene || !this.physicsWorld) {
+            throw new Error('TerrainSystem requires scene and physicsWorld');
         }
-        this.physicsWorld = physicsSystem.physicsWorld;
 
         // Initialize terrain for each entity with a TerrainComponent
         this.world.getEntitiesWithComponents(['TerrainComponent']).forEach(entity => {
             this.createTerrain(entity);
         });
 
+        console.log('TerrainSystem initialized');
         return Promise.resolve();
     }
 
     createTerrain(entity) {
         const terrainComponent = entity.getComponent('TerrainComponent');
-        const physicsSystem = this.world.getSystem('PhysicsSystem');
         
         // Create terrain shape
         const shape = new CANNON.Heightfield(
@@ -44,7 +50,7 @@ export class TerrainSystem extends System {
         // Create terrain body
         const body = new CANNON.Body({
             mass: 0, // Static body
-            material: physicsSystem.groundMaterial,
+            material: this.physicsWorld.defaultMaterial,
             shape: shape,
             position: new CANNON.Vec3(0, this.terrainHeight, 0)
         });
@@ -84,11 +90,15 @@ export class TerrainSystem extends System {
         mesh.receiveShadow = true;
 
         // Add mesh to scene
-        const sceneManager = this.world.getSystem('SceneManager');
-        if (sceneManager && sceneManager.scene) {
-            sceneManager.scene.add(mesh);
-            this.terrainMeshes.set(entity.id, mesh);
-        }
+        this.scene.add(mesh);
+        this.terrainMeshes.set(entity.id, mesh);
+        
+        console.log('Terrain created:', {
+            entityId: entity.id,
+            hasBody: !!body,
+            hasMesh: !!mesh,
+            position: body.position
+        });
     }
 
     generateHeightfieldData(terrainComponent) {
@@ -131,18 +141,26 @@ export class TerrainSystem extends System {
     }
 
     cleanup() {
+        console.log('TerrainSystem cleaning up...');
+        
         // Remove terrain bodies and meshes
         this.terrainBodies.forEach(body => {
-            this.getSystem('PhysicsSystem').world.removeBody(body);
+            if (this.physicsWorld) {
+                this.physicsWorld.removeBody(body);
+            }
         });
         
         this.terrainMeshes.forEach(mesh => {
-            this.getSystem('SceneManager').scene.remove(mesh);
-            mesh.geometry.dispose();
-            mesh.material.dispose();
+            if (this.scene) {
+                this.scene.remove(mesh);
+                if (mesh.geometry) mesh.geometry.dispose();
+                if (mesh.material) mesh.material.dispose();
+            }
         });
         
         this.terrainBodies.clear();
         this.terrainMeshes.clear();
+        
+        console.log('TerrainSystem cleanup complete');
     }
 } 

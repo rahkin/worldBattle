@@ -1,46 +1,41 @@
 export class EventBus {
     constructor() {
-        this.events = new Map();
+        this.listeners = new Map();
     }
 
-    subscribe(eventName, handler) {
-        if (!eventName || typeof eventName !== 'string') {
-            throw new Error('Invalid event name');
+    on(eventName, callback) {
+        if (!this.listeners.has(eventName)) {
+            this.listeners.set(eventName, new Set());
         }
-        if (!handler || typeof handler !== 'function') {
-            throw new Error('Invalid event handler');
-        }
-
-        if (!this.events.has(eventName)) {
-            this.events.set(eventName, []);
-        }
-        this.events.get(eventName).push(handler);
+        this.listeners.get(eventName).add(callback);
     }
 
-    unsubscribe(eventName, handler) {
-        if (!this.events.has(eventName)) return;
-
-        const handlers = this.events.get(eventName);
-        const index = handlers.indexOf(handler);
-        if (index !== -1) {
-            handlers.splice(index, 1);
-        }
-    }
-
-    publish(eventName, data) {
-        if (!this.events.has(eventName)) return;
-
-        const handlers = this.events.get(eventName);
-        handlers.forEach(handler => {
-            try {
-                handler(data);
-            } catch (error) {
-                console.error(`Error in event handler for ${eventName}:`, error);
+    off(eventName, callback) {
+        if (this.listeners.has(eventName)) {
+            this.listeners.get(eventName).delete(callback);
+            if (this.listeners.get(eventName).size === 0) {
+                this.listeners.delete(eventName);
             }
-        });
+        }
+    }
+
+    emit(eventName, data) {
+        if (this.listeners.has(eventName)) {
+            this.listeners.get(eventName).forEach(callback => {
+                try {
+                    callback(data);
+                } catch (error) {
+                    console.error(`Error in event listener for ${eventName}:`, error);
+                }
+            });
+        }
     }
 
     clear() {
-        this.events.clear();
+        this.listeners.clear();
+    }
+
+    getListenerCount(eventName) {
+        return this.listeners.has(eventName) ? this.listeners.get(eventName).size : 0;
     }
 } 

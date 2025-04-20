@@ -181,6 +181,27 @@ export class CameraController {
         }
     }
 
+    setTarget(newTarget) {
+        if (!newTarget || !newTarget.position || !newTarget.quaternion) {
+            console.warn('Invalid target provided to CameraController:', newTarget);
+            return;
+        }
+
+        console.log('Setting new camera target:', {
+            targetType: newTarget.type,
+            position: newTarget.position.toArray(),
+            quaternion: newTarget.quaternion.toArray()
+        });
+
+        this.target = newTarget;
+        
+        // Reset camera state for smooth transition
+        this.updateTargetPositions();
+        this.currentPosition.copy(this.camera.position);
+        this.currentLookAt.copy(this.targetLookAt);
+        this.lastTargetPosition.copy(this.target.position);
+    }
+
     setDistance(distance) {
         if (isFinite(distance) && distance > 0) {
             this.distance = distance;

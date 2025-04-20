@@ -4,7 +4,7 @@ import * as THREE from 'three';
 export class SceneManager extends System {
     constructor(options = {}) {
         super();
-        this.scene = new THREE.Scene();
+        this.scene = null;
         this.camera = null;
         this.renderer = null;
         this.debugEnabled = true; // Enable debug by default
@@ -14,54 +14,94 @@ export class SceneManager extends System {
     init() {
         console.log('Initializing SceneManager');
         
-        // Setup renderer
-        this.renderer = new THREE.WebGLRenderer({ 
-            antialias: true,
-            logarithmicDepthBuffer: true,
-            powerPreference: "high-performance"
-        });
-        this.renderer.setSize(window.innerWidth, window.innerHeight);
-        this.renderer.setPixelRatio(window.devicePixelRatio);
-        this.renderer.shadowMap.enabled = true;
-        this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        try {
+            // Setup renderer
+            this.renderer = new THREE.WebGLRenderer({ 
+                antialias: true,
+                logarithmicDepthBuffer: true,
+                powerPreference: "high-performance",
+                alpha: false // Ensure black background
+            });
+            
+            // Set renderer properties
+            this.renderer.setSize(window.innerWidth, window.innerHeight);
+            this.renderer.setPixelRatio(window.devicePixelRatio);
+            this.renderer.shadowMap.enabled = true;
+            this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            this.renderer.setClearColor(0x87ceeb, 1); // Sky blue color
 
-        // Setup camera
-        this.camera = new THREE.PerspectiveCamera(
-            75, 
-            window.innerWidth / window.innerHeight,
-            0.1,
-            1000
-        );
-        this.camera.position.set(0, 5, 15);
-        this.camera.lookAt(0, 0, 0);
+            // Add renderer to document
+            document.body.appendChild(this.renderer.domElement);
+            
+            console.log('Renderer initialized:', {
+                size: this.renderer.getSize(new THREE.Vector2()),
+                pixelRatio: this.renderer.getPixelRatio(),
+                shadowMapEnabled: this.renderer.shadowMap.enabled,
+                isInDOM: !!this.renderer.domElement.parentNode
+            });
 
-        // Setup scene
-        const skyColor = new THREE.Color(0x87ceeb);
-        this.scene.background = skyColor;
-        this.scene.fog = new THREE.Fog(skyColor, 50, 150);
+            // Setup camera
+            this.camera = new THREE.PerspectiveCamera(
+                75, 
+                window.innerWidth / window.innerHeight,
+                0.1,
+                1000
+            );
+            this.camera.position.set(0, 5, 15);
+            this.camera.lookAt(0, 0, 0);
+            
+            console.log('Camera initialized:', {
+                position: this.camera.position.toArray(),
+                rotation: this.camera.rotation.toArray(),
+                fov: this.camera.fov,
+                aspect: this.camera.aspect
+            });
 
-        // Setup lighting
-        this.setupLighting();
+            // Setup scene (only if not already created)
+            if (!this.scene) {
+                this.scene = new THREE.Scene();
+                const skyColor = new THREE.Color(0x87ceeb);
+                this.scene.background = skyColor;
+                this.scene.fog = new THREE.Fog(skyColor, 50, 150);
 
-        // Setup ground
-        this.setupGround();
+                // Setup lighting
+                this.setupLighting();
 
-        // Add debug visualization
-        if (this.debugEnabled) {
-            this.setupDebugVisualization();
+                // Setup ground
+                this.setupGround();
+
+                // Add debug visualization
+                if (this.debugEnabled) {
+                    this.setupDebugVisualization();
+                }
+            }
+
+            // Handle window resize
+            window.addEventListener('resize', this.handleResize.bind(this));
+
+            // Log final state
+            console.log('SceneManager initialized:', {
+                scene: {
+                    children: this.scene.children.length,
+                    background: this.scene.background ? 'set' : 'none',
+                    fog: this.scene.fog ? 'set' : 'none'
+                },
+                camera: {
+                    position: this.camera.position.toArray(),
+                    aspect: this.camera.aspect
+                },
+                renderer: {
+                    size: this.renderer.getSize(new THREE.Vector2()),
+                    domElement: this.renderer.domElement ? 'created' : 'missing',
+                    isInDOM: !!this.renderer.domElement.parentNode
+                }
+            });
+
+            return Promise.resolve();
+        } catch (error) {
+            console.error('Error initializing SceneManager:', error);
+            return Promise.reject(error);
         }
-
-        // Handle window resize
-        window.addEventListener('resize', this.handleResize.bind(this));
-
-        console.log('SceneManager initialized:', {
-            scene: !!this.scene,
-            camera: !!this.camera,
-            renderer: !!this.renderer,
-            children: this.scene.children.length
-        });
-
-        return Promise.resolve();
     }
 
     setupLighting() {
@@ -122,13 +162,6 @@ export class SceneManager extends System {
         this.scene.add(axesHelper);
         this.debugObjects.set('axes', axesHelper);
 
-        // Add coordinate sphere at origin
-        const sphereGeometry = new THREE.SphereGeometry(0.2, 32, 32);
-        const sphereMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000 });
-        const originSphere = new THREE.Mesh(sphereGeometry, sphereMaterial);
-        this.scene.add(originSphere);
-        this.debugObjects.set('origin', originSphere);
-
         console.log('Debug visualization enabled');
     }
 
@@ -149,21 +182,67 @@ export class SceneManager extends System {
     }
 
     render(camera = this.camera) {
+        // Check if renderer is in DOM, if not, add it
+        if (this.renderer && !this.renderer.domElement.parentNode) {
+            console.warn('Renderer not in DOM, adding it now');
+            document.body.appendChild(this.renderer.domElement);
+        }
+
         if (!this.renderer || !this.scene || !camera) {
-            console.warn('Cannot render: missing renderer, scene, or camera');
+            console.warn('Cannot render: missing renderer, scene, or camera', {
+                hasRenderer: !!this.renderer,
+                hasScene: !!this.scene,
+                hasCamera: !!camera,
+                rendererInDOM: this.renderer ? !!this.renderer.domElement.parentNode : false
+            });
             return;
         }
 
-        // Log scene state occasionally
-        if (this.debugEnabled && Math.random() < 0.01) {
-            console.log('Scene state:', {
-                children: this.scene.children.length,
-                camera: camera.position.toArray(),
-                meshes: this.scene.children.filter(child => child instanceof THREE.Mesh).length
-            });
+        // Debug renderer state
+        console.log('Renderer state:', {
+            size: this.renderer.getSize(new THREE.Vector2()),
+            pixelRatio: this.renderer.getPixelRatio(),
+            isInDOM: !!this.renderer.domElement.parentNode,
+            domElementSize: {
+                width: this.renderer.domElement.clientWidth,
+                height: this.renderer.domElement.clientHeight
+            },
+            cameraPosition: camera.position.toArray(),
+            cameraRotation: camera.rotation.toArray(),
+            sceneObjects: this.scene.children.map(child => ({
+                type: child.type,
+                name: child.name,
+                position: child.position.toArray(),
+                visible: child.visible
+            }))
+        });
+
+        // Ensure camera aspect ratio matches renderer
+        const rendererSize = this.renderer.getSize(new THREE.Vector2());
+        if (camera.aspect !== rendererSize.x / rendererSize.y) {
+            camera.aspect = rendererSize.x / rendererSize.y;
+            camera.updateProjectionMatrix();
         }
 
-        this.renderer.render(this.scene, camera);
+        // Force camera to look at scene center
+        camera.lookAt(0, 0, 0);
+        camera.updateMatrixWorld();
+
+        try {
+            // Clear the renderer
+            this.renderer.clear();
+            
+            // Set viewport and scissor to full size
+            const width = this.renderer.domElement.clientWidth;
+            const height = this.renderer.domElement.clientHeight;
+            this.renderer.setViewport(0, 0, width, height);
+            this.renderer.setScissor(0, 0, width, height);
+            
+            // Render the scene
+            this.renderer.render(this.scene, camera);
+        } catch (error) {
+            console.error('Error during render:', error);
+        }
     }
 
     getScene() {

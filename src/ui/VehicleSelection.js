@@ -16,7 +16,9 @@ export class VehicleSelection {
         ];
     }
 
-    init() {
+    async init() {
+        console.log('Initializing VehicleSelection UI');
+        
         // Create UI container if it doesn't exist
         let uiContainer = document.getElementById('ui-container');
         if (!uiContainer) {
@@ -68,6 +70,8 @@ export class VehicleSelection {
 
         this.container.appendChild(grid);
         uiContainer.appendChild(this.container);
+        
+        console.log('VehicleSelection UI initialized');
     }
 
     createVehicleCard(vehicle) {
@@ -104,6 +108,7 @@ export class VehicleSelection {
 
         // Click handler
         card.onclick = () => {
+            console.log('Vehicle card clicked:', vehicle.id);
             this.selectVehicle(vehicle.id);
         };
 
@@ -111,9 +116,9 @@ export class VehicleSelection {
     }
 
     selectVehicle(vehicleId) {
-        console.log('Selecting vehicle:', vehicleId);
+        console.log('VehicleSelection: Selecting vehicle:', vehicleId);
         // Hide the selection screen
-        this.container.style.display = 'none';
+        this.hide();
         
         // Emit vehicle selected event
         this.eventBus.emit('vehicleSelected', { vehicleType: vehicleId });

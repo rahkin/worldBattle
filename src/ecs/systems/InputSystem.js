@@ -1,4 +1,4 @@
-import { System } from '../core/System.js';
+import { System } from '../System.js';
 import { InputComponent } from '../components/InputComponent.js';
 
 export class InputSystem extends System {
@@ -8,11 +8,21 @@ export class InputSystem extends System {
         this.keyState = {};
         this.boundHandleKeyDown = this.handleKeyDown.bind(this);
         this.boundHandleKeyUp = this.handleKeyUp.bind(this);
+        this.debugEnabled = false;
+        this.frameCounter = 0;
+        this.logInterval = 60; // Only log every 60 frames when debug is enabled
         
         window.addEventListener('keydown', this.boundHandleKeyDown);
         window.addEventListener('keyup', this.boundHandleKeyUp);
         
-        console.log('InputSystem initialized');
+        console.log('InputSystem constructed');
+    }
+
+    init(world) {
+        // Initialize base system
+        this.world = world;
+        console.log('InputSystem initialized with world');
+        return Promise.resolve();
     }
 
     handleKeyDown(event) {
@@ -24,12 +34,18 @@ export class InputSystem extends System {
         }
         
         this.keyState[event.code] = true;
-        console.log('Key down:', event.code, 'Current key states:', this.keyState);
+        
+        if (this.debugEnabled) {
+            console.log('Key down:', event.code, this.keyState);
+        }
     }
 
     handleKeyUp(event) {
         this.keyState[event.code] = false;
-        console.log('Key up:', event.code, 'Current key states:', this.keyState);
+        
+        if (this.debugEnabled) {
+            console.log('Key up:', event.code, this.keyState);
+        }
     }
 
     update(deltaTime) {
@@ -38,26 +54,47 @@ export class InputSystem extends System {
             return;
         }
 
-        const entities = this.world.getEntitiesWithComponents(['InputComponent']);
-        console.log('InputSystem update - Found entities:', entities.length);
-        
-        for (const entity of entities) {
-            const input = entity.getComponent('InputComponent');
-            if (!input) {
-                console.warn('InputSystem: Entity has no InputComponent:', entity.id);
-                continue;
+        this.frameCounter++;
+        const inputEntities = this.world.getEntitiesWithComponents(['InputComponent']);
+
+        for (const entity of inputEntities) {
+            const inputComponent = entity.getComponent('InputComponent');
+            if (!inputComponent) continue;
+
+            // Store previous state
+            const previousState = {
+                forward: inputComponent.forward,
+                backward: inputComponent.backward,
+                left: inputComponent.left,
+                right: inputComponent.right,
+                boost: inputComponent.boost,
+                brake: inputComponent.brake
+            };
+
+            // Update input component based on key state
+            inputComponent.forward = this.keyState['KeyW'] || this.keyState['ArrowUp'] || false;
+            inputComponent.backward = this.keyState['KeyS'] || this.keyState['ArrowDown'] || false;
+            inputComponent.left = this.keyState['KeyA'] || this.keyState['ArrowLeft'] || false;
+            inputComponent.right = this.keyState['KeyD'] || this.keyState['ArrowRight'] || false;
+            inputComponent.boost = this.keyState['ShiftLeft'] || this.keyState['ShiftRight'] || false;
+            inputComponent.brake = this.keyState['Space'] || false;
+
+            // Only log if state changed and debug is enabled
+            const stateChanged = Object.keys(previousState).some(key => previousState[key] !== inputComponent[key]);
+            
+            if (this.debugEnabled && stateChanged) {
+                console.log('Input state changed:', {
+                    entityId: entity.id,
+                    forward: inputComponent.forward,
+                    backward: inputComponent.backward,
+                    left: inputComponent.left,
+                    right: inputComponent.right,
+                    boost: inputComponent.boost,
+                    brake: inputComponent.brake
+                });
             }
 
-            // Update input state based on key states
-            input.forward = this.keyState['KeyW'] || this.keyState['ArrowUp'];
-            input.backward = this.keyState['KeyS'] || this.keyState['ArrowDown'];
-            input.left = this.keyState['KeyA'] || this.keyState['ArrowLeft'];
-            input.right = this.keyState['KeyD'] || this.keyState['ArrowRight'];
-            input.boost = this.keyState['ShiftLeft'] || this.keyState['ShiftRight'];
-            input.brake = this.keyState['Space'];
-
-            // Update the component
-            input.update(deltaTime);
+            inputComponent.update(deltaTime);
         }
     }
 

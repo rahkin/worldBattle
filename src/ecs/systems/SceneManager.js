@@ -2,8 +2,9 @@ import { System } from '../core/System.js';
 import * as THREE from 'three';
 
 export class SceneManager extends System {
-    constructor(options = {}) {
+    constructor(world) {
         super();
+        this.world = world;
         this.scene = null;
         this.camera = null;
         this.renderer = null;
@@ -181,68 +182,46 @@ export class SceneManager extends System {
         }
     }
 
+    setActiveCamera(camera) {
+        if (camera) {
+            this.camera = camera;
+            // Update aspect ratio for the new camera
+            this.camera.aspect = window.innerWidth / window.innerHeight;
+            this.camera.updateProjectionMatrix();
+            console.log('Active camera updated:', {
+                position: this.camera.position.toArray(),
+                aspect: this.camera.aspect
+            });
+        }
+    }
+
     render(camera = this.camera) {
         // Check if renderer is in DOM, if not, add it
         if (this.renderer && !this.renderer.domElement.parentNode) {
-            console.warn('Renderer not in DOM, adding it now');
             document.body.appendChild(this.renderer.domElement);
         }
 
         if (!this.renderer || !this.scene || !camera) {
-            console.warn('Cannot render: missing renderer, scene, or camera', {
-                hasRenderer: !!this.renderer,
-                hasScene: !!this.scene,
-                hasCamera: !!camera,
-                rendererInDOM: this.renderer ? !!this.renderer.domElement.parentNode : false
-            });
+            console.warn('Cannot render: missing renderer, scene, or camera');
             return;
         }
 
-        // Debug renderer state
-        console.log('Renderer state:', {
-            size: this.renderer.getSize(new THREE.Vector2()),
-            pixelRatio: this.renderer.getPixelRatio(),
-            isInDOM: !!this.renderer.domElement.parentNode,
-            domElementSize: {
-                width: this.renderer.domElement.clientWidth,
-                height: this.renderer.domElement.clientHeight
-            },
-            cameraPosition: camera.position.toArray(),
-            cameraRotation: camera.rotation.toArray(),
-            sceneObjects: this.scene.children.map(child => ({
-                type: child.type,
-                name: child.name,
-                position: child.position.toArray(),
-                visible: child.visible
-            }))
-        });
+        // Use the provided camera or the scene's camera
+        const renderCamera = camera || this.camera;
+        if (!renderCamera) {
+            console.warn('No camera available for rendering');
+            return;
+        }
 
         // Ensure camera aspect ratio matches renderer
         const rendererSize = this.renderer.getSize(new THREE.Vector2());
-        if (camera.aspect !== rendererSize.x / rendererSize.y) {
-            camera.aspect = rendererSize.x / rendererSize.y;
-            camera.updateProjectionMatrix();
+        if (renderCamera.aspect !== rendererSize.x / rendererSize.y) {
+            renderCamera.aspect = rendererSize.x / rendererSize.y;
+            renderCamera.updateProjectionMatrix();
         }
 
-        // Force camera to look at scene center
-        camera.lookAt(0, 0, 0);
-        camera.updateMatrixWorld();
-
-        try {
-            // Clear the renderer
-            this.renderer.clear();
-            
-            // Set viewport and scissor to full size
-            const width = this.renderer.domElement.clientWidth;
-            const height = this.renderer.domElement.clientHeight;
-            this.renderer.setViewport(0, 0, width, height);
-            this.renderer.setScissor(0, 0, width, height);
-            
-            // Render the scene
-            this.renderer.render(this.scene, camera);
-        } catch (error) {
-            console.error('Error during render:', error);
-        }
+        // Render the scene
+        this.renderer.render(this.scene, renderCamera);
     }
 
     getScene() {
@@ -258,45 +237,32 @@ export class SceneManager extends System {
     }
 
     cleanup() {
-        // Remove event listeners
-        window.removeEventListener('resize', this.handleResize);
-
-        // Dispose of debug objects
-        this.debugObjects.forEach((object) => {
-            if (object.geometry) object.geometry.dispose();
-            if (object.material) {
-                if (Array.isArray(object.material)) {
-                    object.material.forEach(material => material.dispose());
-                } else {
-                    object.material.dispose();
-                }
-            }
-            this.scene.remove(object);
-        });
-        this.debugObjects.clear();
-
-        // Clean up scene
-        while(this.scene.children.length > 0) { 
-            const object = this.scene.children[0];
-            if (object.geometry) object.geometry.dispose();
-            if (object.material) {
-                if (Array.isArray(object.material)) {
-                    object.material.forEach(material => material.dispose());
-                } else {
-                    object.material.dispose();
-                }
-            }
-            this.scene.remove(object);
-        }
-
-        // Clean up renderer
         if (this.renderer) {
-            this.renderer.dispose();
-            if (this.renderer.domElement.parentNode) {
+            if (this.renderer.domElement && this.renderer.domElement.parentNode) {
                 this.renderer.domElement.parentNode.removeChild(this.renderer.domElement);
             }
+            this.renderer.dispose();
         }
 
-        console.log('SceneManager cleaned up');
+        if (this.scene) {
+            this.scene.traverse((object) => {
+                if (object.geometry) {
+                    object.geometry.dispose();
+                }
+                if (object.material) {
+                    if (Array.isArray(object.material)) {
+                        object.material.forEach(material => material.dispose());
+                    } else {
+                        object.material.dispose();
+                    }
+                }
+            });
+        }
+
+        // Clear all references
+        this.scene = null;
+        this.camera = null;
+        this.renderer = null;
+        this.debugObjects.clear();
     }
 } 

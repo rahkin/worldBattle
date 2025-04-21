@@ -1,4 +1,5 @@
 import { Game } from './ecs/core/Game.js';
+import { WorldGenerationTest } from './scenes/WorldGenerationTest.js';
 
 let game = null;
 
@@ -13,6 +14,18 @@ async function init() {
         // Create and initialize new game
         game = new Game();
         await game.init();
+        
+        console.log('Adding WorldGenerationTest scene...');
+        const worldGenScene = new WorldGenerationTest(game);
+        game.addScene('WorldGenerationTest', worldGenScene);
+        
+        console.log('Setting active scene...');
+        game.setActiveScene('WorldGenerationTest');
+        
+        console.log('Initializing active scene...');
+        await worldGenScene.initialize();
+        
+        console.log('Starting game loop...');
         game.start();
 
         // Hide loading screen

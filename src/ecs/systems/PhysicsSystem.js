@@ -7,45 +7,46 @@ export class PhysicsSystem extends System {
         super();
         this.requiredComponents = [PhysicsBody];
         
-        // Initialize CANNON.js physics world with lower gravity
+        // Initialize CANNON.js physics world with increased gravity for better vehicle control
         this.physicsWorld = new CANNON.World({
-            gravity: new CANNON.Vec3(0, -9.82, 0)
+            gravity: new CANNON.Vec3(0, -20, 0)  // Increased gravity
         });
         
-        // Set very low friction and restitution
-        this.physicsWorld.defaultContactMaterial.friction = 0.3;
-        this.physicsWorld.defaultContactMaterial.restitution = 0.01;
+        // Set higher friction for better vehicle control
+        this.physicsWorld.defaultContactMaterial.friction = 0.8;
+        this.physicsWorld.defaultContactMaterial.restitution = 0.1;
 
-        // Create ground material with low friction
+        // Create ground material with higher friction
         this.groundMaterial = new CANNON.Material('ground');
-        this.groundMaterial.friction = 0.3;
-        this.groundMaterial.restitution = 0.01;
+        this.groundMaterial.friction = 0.8;
+        this.groundMaterial.restitution = 0.1;
         
         this.vehicleMaterial = new CANNON.Material('vehicle');
-        this.vehicleMaterial.friction = 0.3;
-        this.vehicleMaterial.restitution = 0.01;
+        this.vehicleMaterial.friction = 0.8;
+        this.vehicleMaterial.restitution = 0.1;
 
-        // Create contact material between ground and vehicle
+        // Create contact material between ground and vehicle with better traction
         const groundVehicleContactMaterial = new CANNON.ContactMaterial(
             this.groundMaterial,
             this.vehicleMaterial,
             {
-                friction: 0.3,
-                restitution: 0.01,
-                contactEquationStiffness: 1e8,
+                friction: 0.8,  // Higher friction for better traction
+                restitution: 0.1,  // Slight bounce
+                contactEquationStiffness: 1e6,  // Reduced for more stable contact
                 contactEquationRelaxation: 3,
-                frictionEquationStiffness: 1e8,
+                frictionEquationStiffness: 1e6,  // Reduced for more stable friction
                 frictionEquationRelaxation: 3
             }
         );
 
         this.physicsWorld.addContactMaterial(groundVehicleContactMaterial);
 
-        // Set up broadphase and solver
+        // Set up broadphase and solver with better stability
         this.physicsWorld.broadphase = new CANNON.SAPBroadphase(this.physicsWorld);
-        this.physicsWorld.solver.iterations = 50;  // Increased iterations
-        this.physicsWorld.solver.tolerance = 0.0001;
-        this.physicsWorld.solver.frictionIterations = 3;
+        this.physicsWorld.solver.iterations = 20;  // Reduced iterations for better performance
+        this.physicsWorld.solver.tolerance = 0.001;  // Increased tolerance for stability
+        this.physicsWorld.allowSleep = true;  // Enable sleeping for better performance
+        this.physicsWorld.solver.frictionIterations = 5;  // Increased friction iterations
 
         // Enable debug mode
         this.debugEnabled = true;
@@ -164,7 +165,7 @@ export class PhysicsSystem extends System {
     }
 
     createGroundBody() {
-        // Create a slightly larger ground plane
+        // Create a large ground plane for better vehicle movement
         const groundShape = new CANNON.Plane();
         const groundBody = new CANNON.Body({
             mass: 0,  // Static body
@@ -176,10 +177,10 @@ export class PhysicsSystem extends System {
         
         // Rotate and position the ground to match the visual plane
         groundBody.quaternion.setFromAxisAngle(new CANNON.Vec3(1, 0, 0), -Math.PI / 2);
-        groundBody.position.set(0, 0, 0);
+        groundBody.position.set(0, -0.1, 0);  // Slightly lower to prevent z-fighting
 
-        // Add a debug shape to visualize the ground plane collision
-        const debugShape = new CANNON.Box(new CANNON.Vec3(50, 0.1, 50));
+        // Add a larger debug shape to visualize the ground plane collision
+        const debugShape = new CANNON.Box(new CANNON.Vec3(100, 0.1, 100));  // Increased size
         const debugBody = new CANNON.Body({
             mass: 0,
             material: this.groundMaterial,
@@ -187,7 +188,7 @@ export class PhysicsSystem extends System {
             collisionFilterGroup: 1,
             collisionFilterMask: -1
         });
-        debugBody.position.set(0, -0.1, 0);  // Slightly below the ground plane
+        debugBody.position.set(0, -0.2, 0);  // Slightly below the ground plane
         this.physicsWorld.addBody(debugBody);
 
         console.log('Ground plane created:', {

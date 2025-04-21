@@ -3,7 +3,7 @@ import { VehicleComponent } from '../components/VehicleComponent.js';
 import { MeshComponent } from '../components/MeshComponent.js';
 import { PhysicsBody } from '../components/PhysicsBody.js';
 import { InputComponent } from '../components/InputComponent.js';
-import { VehicleControlsComponent } from '../components/VehicleControlsComponent.js';
+import { VehicleControls } from '../components/VehicleControls.js';
 import { CollisionComponent } from '../components/CollisionComponent.js';
 import { WeaponComponent } from '../components/WeaponComponent.js';
 import { AudioSystem } from './AudioSystem.js';
@@ -20,13 +20,13 @@ export class VehicleSystem extends System {
         
         // Basic vehicle physics constants
         this.maxSteerVal = 0.5;
-        this.normalForce = 2000;    // Reduced from 4000 for smoother acceleration
-        this.boostForce = 3000;     // Reduced from 6000
-        this.reverseForce = 1000;   // Reduced from 2000
-        this.brakeForce = 50;       // Reduced from 100
-        this.rollingResistance = 25; // Reduced from 50
-        this.turnSpeed = 2.0;
-        this.maxSpeed = 80;         // Reduced from 100
+        this.normalForce = 3000;    // Increased for better acceleration
+        this.boostForce = 4500;     // Increased for more noticeable boost
+        this.reverseForce = 1500;   // Increased for better reverse
+        this.brakeForce = 100;      // Increased for better stopping power
+        this.rollingResistance = 15; // Reduced for less drag
+        this.turnSpeed = 2.5;       // Increased for more responsive turning
+        this.maxSpeed = 100;        // Increased max speed
         
         // Debug counter
         this.debugFrameCount = 0;
@@ -91,10 +91,11 @@ export class VehicleSystem extends System {
         const body = new CANNON.Body({
             mass: this.getVehicleMass(type),
             shape: shape,
-            position: new CANNON.Vec3(position.x, position.y + 0.2, position.z), // Lower initial position
+            position: new CANNON.Vec3(position.x, position.y + 0.5, position.z), // Raised initial position
             material: new CANNON.Material('vehicleMaterial'),
-            linearDamping: 0.2,
-            angularDamping: 0.2
+            linearDamping: 0.1,     // Reduced for less drag
+            angularDamping: 0.3,    // Increased for better stability
+            allowSleep: false       // Prevent vehicle from "sleeping"
         });
 
         // Add body to physics world immediately
@@ -110,27 +111,27 @@ export class VehicleSystem extends System {
 
         // Add wheels with proper configuration
         const wheelOptions = {
-            radius: 0.3,
+            radius: 0.35,           // Increased wheel size
             directionLocal: new CANNON.Vec3(0, -1, 0),
-            suspensionStiffness: 25,  // Reduced from 30 for smoother ride
-            suspensionRestLength: 0.3, // Increased from 0.2 to raise vehicle
-            frictionSlip: 1.5,        // Reduced from 2.0 for less jerky movement
-            dampingRelaxation: 2.5,   // Adjusted for smoother suspension
-            dampingCompression: 2.5,  // Adjusted for smoother suspension
-            maxSuspensionForce: 50000, // Reduced from 100000
-            rollInfluence: 0.05,      // Increased from 0.01 for better stability
+            suspensionStiffness: 35,  // Increased for better response
+            suspensionRestLength: 0.4, // Increased for higher clearance
+            frictionSlip: 2.0,        // Increased for better traction
+            dampingRelaxation: 3.0,   // Increased for better stability
+            dampingCompression: 3.0,  // Increased for better stability
+            maxSuspensionForce: 75000, // Increased for better handling
+            rollInfluence: 0.03,      // Reduced for less body roll
             axleLocal: new CANNON.Vec3(1, 0, 0),
             chassisConnectionPointLocal: new CANNON.Vec3(1, 0, 1),
-            maxSuspensionTravel: 0.3, // Increased from 0.2
-            customSlidingRotationalSpeed: -20, // Reduced from -30
+            maxSuspensionTravel: 0.4, // Increased for more suspension travel
+            customSlidingRotationalSpeed: -15, // Reduced for smoother turning
             useCustomSlidingRotationalSpeed: true
         };
 
-        // Add wheels at proper positions
-        const FRONT_AXLE = -1.0;
-        const REAR_AXLE = 1.0;
-        const WHEEL_Y = -0.5;  // Lowered from -0.4 to -0.5 for better wheel positioning
-        const WHEEL_X = 0.8;
+        // Adjust wheel positions
+        const FRONT_AXLE = -1.2;  // Moved front wheels forward
+        const REAR_AXLE = 1.2;    // Moved rear wheels back
+        const WHEEL_Y = -0.4;     // Raised wheel position
+        const WHEEL_X = 0.9;      // Widened wheel track
 
         // Front left
         wheelOptions.chassisConnectionPointLocal.set(-WHEEL_X, WHEEL_Y, FRONT_AXLE);
@@ -225,7 +226,7 @@ export class VehicleSystem extends System {
         // Create a group to hold all vehicle parts
         const group = new THREE.Group();
 
-        // Base dimensions for the chassis (doubled to match physics body)
+        // Base dimensions for the chassis
         const dimensions = {
             muscle: { width: 2.4, height: 1.0, length: 5.0 },
             ironclad: { width: 2.8, height: 1.2, length: 5.6 },
@@ -381,29 +382,22 @@ export class VehicleSystem extends System {
             group.add(rightHeadlight);
         }
 
-        // Add debug axes helper in development
-        if (process.env.NODE_ENV === 'development') {
-            const axesHelper = new THREE.AxesHelper(2);
-            group.add(axesHelper);
-        }
-
-        // Ensure the group is properly positioned
-        group.position.copy(bodyMesh.position);
-        
         return group;
+    }
+
+    getVehicleColor(type) {
+        const colors = {
+            muscle: 0xff4400,    // Bright orange-red
+            ironclad: 0x505050,  // Metallic gray
+            scorpion: 0x00ff88,  // Neon green
+            tank: 0x336633,      // Military green
+            drone: 0x0088ff      // Electric blue
+        };
+        return colors[type] || colors.muscle;
     }
 
     update(deltaTime) {
         for (const entity of this.vehicles.values()) {
-            // Log component presence for debugging
-            console.log('Vehicle update - Entity components:', {
-                entityId: entity.id,
-                hasInput: entity.hasComponent('InputComponent'),
-                hasPhysicsBody: entity.hasComponent('PhysicsBody'),
-                hasVehicleComponent: entity.hasComponent('VehicleComponent'),
-                hasMeshComponent: entity.hasComponent('MeshComponent')
-            });
-
             const input = entity.getComponent('InputComponent');
             const physicsBody = entity.getComponent('PhysicsBody');
             const vehicleComponent = entity.getComponent('VehicleComponent');
@@ -443,7 +437,7 @@ export class VehicleSystem extends System {
             // Calculate steering force based on input state
             let steeringForce = 0;
             if (input.left) {
-                steeringForce = this.maxSteerVal / Math.max(1, Math.log10(massMultiplier)); // Reduce steering for heavier vehicles
+                steeringForce = this.maxSteerVal / Math.max(1, Math.log10(massMultiplier));
             } else if (input.right) {
                 steeringForce = -this.maxSteerVal / Math.max(1, Math.log10(massMultiplier));
             }
@@ -482,66 +476,22 @@ export class VehicleSystem extends System {
                 meshComponent.mesh.position.copy(physicsBody.body.position);
                 meshComponent.mesh.quaternion.copy(physicsBody.body.quaternion);
             }
-
-            // Debug logging for vehicle state
-            if (input.hasChanged()) {
-                console.log('Vehicle state:', {
-                    type: vehicleComponent.type,
-                    mass: mass,
-                    massMultiplier: massMultiplier,
-                    forward: input.forward,
-                    backward: input.backward,
-                    left: input.left,
-                    right: input.right,
-                    brake: input.brake,
-                    boost: input.boost,
-                    engineForce: engineForce,
-                    steeringForce: steeringForce,
-                    brakeForce: brakeForce,
-                    velocity: velocity,
-                    position: physicsBody.body.position.toArray(),
-                    wheelsInContact: physicsBody.vehicle.wheelInfos.filter(w => w.isInContact).length
-                });
-            }
-        }
-        this.debugFrameCount++;
-    }
-
-    handleCollision(entity, otherEntity, event) {
-        const impactForce = event.contact.getImpactVelocityAlongNormal();
-        if (Math.abs(impactForce) > 5) {
-            // Play impact sound
-            const audioSystem = this.world.getSystem('AudioSystem');
-            if (audioSystem) {
-                audioSystem.playSound('impact', {
-                    volume: Math.min(Math.abs(impactForce) / 10, 1)
-                });
-            }
-
-            // Apply damage based on impact force
-            const vehicleComponent = entity.getComponent('VehicleComponent');
-            if (vehicleComponent) {
-                const damage = Math.abs(impactForce) * (1 - vehicleComponent.damageResistance);
-                vehicleComponent.health -= damage;
-
-                if (vehicleComponent.health <= 0) {
-                    this.destroyVehicle(entity);
-                }
-            }
         }
     }
 
-    destroyVehicle(entity) {
-        // TODO: Add explosion effect
-        this.removeVehicle(entity);
+    cleanup() {
+        for (const entity of this.vehicles.values()) {
+            this.removeVehicle(entity);
+        }
+        this.vehicles.clear();
     }
 
     removeVehicle(entity) {
         const vehicle = this.vehicles.get(entity.id);
         if (!vehicle) return;
 
-        const physicsBody = vehicle.getComponent(PhysicsBody);
-        const meshComponent = vehicle.getComponent(MeshComponent);
+        const physicsBody = vehicle.getComponent('PhysicsBody');
+        const meshComponent = vehicle.getComponent('MeshComponent');
 
         if (physicsBody) {
             if (physicsBody.vehicle) {
@@ -559,22 +509,4 @@ export class VehicleSystem extends System {
         this.vehicles.delete(entity.id);
         this.world.removeEntity(entity);
     }
-
-    cleanup() {
-        for (const entity of this.vehicles.values()) {
-            this.removeVehicle(entity);
-        }
-        this.vehicles.clear();
-    }
-
-    getVehicleColor(type) {
-        const colors = {
-            muscle: 0xff4400,    // Bright orange-red
-            ironclad: 0x505050,  // Metallic gray
-            scorpion: 0x00ff88,  // Neon green
-            tank: 0x336633,      // Military green
-            drone: 0x0088ff      // Electric blue
-        };
-        return colors[type] || colors.muscle;
-    }
-} 
+}

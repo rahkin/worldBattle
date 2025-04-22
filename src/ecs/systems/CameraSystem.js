@@ -138,7 +138,7 @@ export class CameraSystem extends System {
         if (!this.target) return;
 
         const physicsBody = this.target.getComponent('PhysicsBody');
-        const input = this.target.getComponent('Input');
+        const input = this.target.getComponent('InputComponent');
         
         if (!physicsBody) {
             console.warn('Target has no physics body');
@@ -151,14 +151,14 @@ export class CameraSystem extends System {
         const velocity = physicsBody.body.velocity;
         const speed = velocity.length();
 
-        // Calculate forward vector from quaternion
-        const forward = new THREE.Vector3(0, 0, 1);
+        // Calculate forward vector from quaternion - using negative Z as forward
+        const forward = new THREE.Vector3(0, 0, -1);
         forward.applyQuaternion(new THREE.Quaternion(
             quaternion.x, quaternion.y, quaternion.z, quaternion.w
         ));
 
         // Adjust for reverse movement
-        const isReversing = input && input.reverse;
+        const isReversing = input && input.backward;
         if (isReversing) {
             forward.multiplyScalar(-1);
         }

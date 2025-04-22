@@ -377,6 +377,16 @@ export class Game {
                 throw new Error('Vehicle has no mesh component');
             }
 
+            // Set the vehicle as the camera target
+            if (this.cameraSystem) {
+                const success = this.cameraSystem.setTarget(vehicle);
+                if (!success) {
+                    console.warn('Failed to set camera target');
+                }
+            } else {
+                console.warn('No camera system available');
+            }
+
             // Start the game loop if not already running
             if (!this.isRunning) {
                 this.start();

@@ -102,22 +102,7 @@ export class World {
 
     getEntitiesWithComponents(componentTypes) {
         const entities = Array.from(this.entities.values()).filter(entity => {
-            const hasAllComponents = componentTypes.every(type => {
-                const hasComponent = entity.hasComponent(type);
-                if (!hasComponent) {
-                    console.log(`Entity ${entity.id} missing component: ${type}`);
-                }
-                return hasComponent;
-            });
-            if (hasAllComponents) {
-                console.log(`Found entity ${entity.id} with all required components:`, componentTypes);
-            }
-            return hasAllComponents;
-        });
-        console.log('getEntitiesWithComponents result:', {
-            requestedComponents: componentTypes,
-            totalEntities: this.entities.size,
-            matchingEntities: entities.length
+            return componentTypes.every(type => entity.hasComponent(type));
         });
         return entities;
     }

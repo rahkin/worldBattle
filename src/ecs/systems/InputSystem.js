@@ -1,4 +1,4 @@
-import { System } from '../System.js';
+import { System } from '../core/System.js';
 import { InputComponent } from '../components/InputComponent.js';
 
 export class InputSystem extends System {
@@ -55,11 +55,14 @@ export class InputSystem extends System {
         }
 
         this.frameCounter++;
-        const inputEntities = this.world.getEntitiesWithComponents(['InputComponent']);
+        const inputEntities = this.world.getEntitiesWithComponents(this.requiredComponents);
 
         for (const entity of inputEntities) {
             const inputComponent = entity.getComponent('InputComponent');
-            if (!inputComponent) continue;
+            if (!inputComponent) {
+                console.warn(`Entity ${entity.id} missing InputComponent`);
+                continue;
+            }
 
             // Store previous state
             const previousState = {

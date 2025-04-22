@@ -6,12 +6,32 @@ export class Entity {
         this.enabled = true;
     }
 
-    addComponent(component) {
-        const componentType = component.type || component.constructor.name;
+    addComponent(type, component) {
+        // Handle both (type, component) and (component) signatures
+        let componentInstance;
+        let componentType;
+        
+        if (component) {
+            // (type, component) signature
+            componentInstance = component;
+            componentType = type;
+        } else {
+            // (component) signature
+            componentInstance = type;
+            componentType = componentInstance.type || componentInstance.constructor.name;
+        }
+
         console.log(`Adding component of type: ${componentType} to entity ${this.id}`);
-        this.components.set(componentType, component);
-        component.setEntity(this);
-        return component;
+        
+        // Store the component
+        this.components.set(componentType, componentInstance);
+        
+        // Call setEntity if it exists
+        if (typeof componentInstance.setEntity === 'function') {
+            componentInstance.setEntity(this);
+        }
+        
+        return componentInstance;
     }
 
     removeComponent(componentType) {

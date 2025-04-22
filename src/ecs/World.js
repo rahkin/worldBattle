@@ -58,7 +58,15 @@ export class World {
         for (const [name, system] of this.systems.entries()) {
             if (system.isEnabled()) {
                 try {
-                    system.update(deltaTime);
+                    // Check if system has required components
+                    if (system.requiredComponents) {
+                        const entities = this.getEntitiesWithComponents(system.requiredComponents);
+                        if (entities.length > 0) {
+                            system.update(deltaTime);
+                        }
+                    } else {
+                        system.update(deltaTime);
+                    }
                 } catch (error) {
                     console.error(`Error updating system ${name}:`, error);
                 }

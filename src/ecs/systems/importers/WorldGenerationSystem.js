@@ -1,4 +1,4 @@
-import { System } from '../../System.js';
+import { System } from '../../core/System.js';
 import { TerrainComponent } from '../../components/TerrainComponent.js';
 import { DebugPanelComponent } from '../../components/DebugPanelComponent.js';
 import { geographicToWorld } from '../../../utils/geographicToWorld.js';

@@ -1,6 +1,11 @@
 export class System {
-    constructor() {
-        this.world = null;
+    constructor(world = null) {
+        Object.defineProperty(this, 'world', {
+            value: world,
+            writable: true,
+            enumerable: true,
+            configurable: true
+        });
         this.enabled = true;
     }
 
@@ -17,10 +22,18 @@ export class System {
     }
 
     getEntitiesWithComponents(componentTypes) {
+        if (!this.world) {
+            console.warn(`${this.constructor.name}: No world reference available`);
+            return [];
+        }
         return this.world.getEntitiesWithComponents(componentTypes);
     }
 
     getSystem(systemName) {
+        if (!this.world) {
+            console.warn(`${this.constructor.name}: No world reference available`);
+            return null;
+        }
         return this.world.getSystem(systemName);
     }
 

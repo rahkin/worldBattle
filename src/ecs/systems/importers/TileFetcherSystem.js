@@ -1,4 +1,4 @@
-import { System } from '../../System.js';
+import { System } from '../../core/System.js';
 import Pbf from 'pbf';
 import * as turf from '@turf/turf';
 import { geographicToWorld } from '../../../utils/geographicToWorld.js';

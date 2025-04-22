@@ -1,5 +1,4 @@
 import { Game } from './ecs/core/Game.js';
-import { WorldGenerationTest } from './scenes/WorldGenerationTest.js';
 
 let game = null;
 
@@ -15,26 +14,13 @@ async function init() {
         game = new Game();
         await game.init();
         
-        console.log('Adding WorldGenerationTest scene...');
-        const worldGenScene = new WorldGenerationTest(game);
-        game.addScene('WorldGenerationTest', worldGenScene);
+        console.log('Game initialized successfully');
         
-        console.log('Setting active scene...');
-        game.setActiveScene('WorldGenerationTest');
-        
-        console.log('Initializing active scene...');
-        await worldGenScene.initialize();
-        
-        console.log('Starting game loop...');
-        game.start();
-
         // Hide loading screen
         const loadingScreen = document.getElementById('loading-screen');
         if (loadingScreen) {
             loadingScreen.style.display = 'none';
         }
-
-        console.log('Game initialized successfully');
     } catch (error) {
         console.error('Failed to initialize game:', error);
         

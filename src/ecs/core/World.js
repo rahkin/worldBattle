@@ -39,12 +39,35 @@ export class World {
         return this.entities.get(id);
     }
 
-    async addSystem(system) {
-        const systemName = system.constructor.name;
+    async addSystem(nameOrSystem, systemInstance = null) {
+        let system;
+        let systemName;
+
+        if (systemInstance) {
+            // Called with (name, system)
+            system = systemInstance;
+            systemName = nameOrSystem;
+        } else {
+            // Called with (system)
+            system = nameOrSystem;
+            systemName = system.constructor.name;
+        }
+
         console.log(`Adding system: ${systemName}`);
 
+        // Ensure system has a world property
+        if (!('world' in system)) {
+            Object.defineProperty(system, 'world', {
+                value: this,
+                writable: true,
+                enumerable: true,
+                configurable: true
+            });
+        } else {
+            system.world = this;
+        }
+
         this.systems.set(systemName, system);
-        system.world = this;
         
         if (system.init) {
             try {

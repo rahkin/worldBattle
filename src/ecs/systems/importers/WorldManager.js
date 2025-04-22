@@ -1,4 +1,4 @@
-import { System } from '../../System.js';
+import { System } from '../../core/System.js';
 import { geographicToWorld } from '../../../utils/geographicToWorld.js';
 import { LoadingComponent } from '../../components/LoadingComponent.js';
 import { TerrainComponent } from '../../components/TerrainComponent.js';
@@ -19,7 +19,7 @@ export class WorldManager extends System {
         
         // Create loading entity
         this.loadingEntity = world.createEntity();
-        this.loadingEntity.addComponent('LoadingComponent', new LoadingComponent());
+        this.loadingEntity.addComponent(new LoadingComponent());
         
         // Track loading state
         this.isWorldLoaded = false;
@@ -57,7 +57,7 @@ export class WorldManager extends System {
         if (!this.terrainEntity) {
             this.terrainEntity = this.world.createEntity();
             const terrainComponent = new TerrainComponent();
-            this.terrainEntity.addComponent('TerrainComponent', terrainComponent);
+            this.terrainEntity.addComponent(terrainComponent);
             
             // Initialize terrain with flat ground
             for (let x = -50; x <= 50; x++) {

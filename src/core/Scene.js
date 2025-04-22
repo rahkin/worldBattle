@@ -6,7 +6,7 @@ export class Scene extends THREE.Scene {
         super();
         this.game = game;
         this.name = 'Scene';
-        this.world = new World();
+        this.world = game.world || new World(); // Use game's world if available
         this.initialized = false;
 
         // Create or use existing camera
@@ -44,6 +44,10 @@ export class Scene extends THREE.Scene {
         }
 
         try {
+            // Setup basic scene elements
+            this.setupSky();
+            this.setupGround();
+            
             console.log('Initializing world systems');
             await this.world.initialize?.();
             this.initialized = true;
@@ -52,6 +56,37 @@ export class Scene extends THREE.Scene {
             console.error('Failed to initialize scene:', error);
             throw error;
         }
+    }
+
+    setupSky() {
+        // Set sky color
+        const skyColor = new THREE.Color(0x87ceeb); // Sky blue
+        this.background = skyColor;
+        this.fog = new THREE.Fog(skyColor, 50, 150);
+    }
+
+    setupGround() {
+        // Create ground plane
+        const groundGeometry = new THREE.PlaneGeometry(200, 200);
+        const groundMaterial = new THREE.MeshStandardMaterial({
+            color: 0x808080,
+            roughness: 0.8,
+            metalness: 0.2,
+            side: THREE.DoubleSide
+        });
+        
+        const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+        ground.rotation.x = -Math.PI / 2;
+        ground.position.y = 0;
+        ground.receiveShadow = true;
+        ground.name = 'ground';
+        
+        this.add(ground);
+
+        // Add grid helper
+        const gridHelper = new THREE.GridHelper(200, 200, 0x444444, 0x888888);
+        gridHelper.position.y = 0.01;
+        this.add(gridHelper);
     }
 
     update(deltaTime) {

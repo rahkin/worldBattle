@@ -5,7 +5,11 @@ export default defineConfig({
     publicDir: 'public',
     server: {
         port: 3000,
-        open: '/test/world-generation-test.html'
+        open: '/index.html',
+        fs: {
+            strict: false,
+            allow: ['..']
+        }
     },
     build: {
         outDir: 'dist',
@@ -20,9 +24,10 @@ export default defineConfig({
         }
     },
     resolve: {
-        preserveSymlinks: true
+        preserveSymlinks: true,
+        extensions: ['.js', '.mjs', '.json']
     },
     optimizeDeps: {
-        // No specific dependencies to optimize
+        include: ['three']
     }
 }); 

@@ -101,8 +101,9 @@ export class CameraSystem extends System {
         const physicsComponent = this.target.getComponent('PhysicsBody');
         if (!meshComponent || !meshComponent.mesh) return;
 
-        // Get target's current position and velocity
+        // Get target's current position, rotation and velocity
         const targetPos = meshComponent.mesh.position;
+        const targetQuat = meshComponent.mesh.quaternion;
         const velocity = physicsComponent ? new THREE.Vector3(
             physicsComponent.velocity.x,
             physicsComponent.velocity.y,
@@ -124,30 +125,27 @@ export class CameraSystem extends System {
         const adjustedHeight = params.height * (1 + speedRatio * 0.2);
         const adjustedLookAhead = params.lookAhead * (1 + speedRatio * 0.5);
         
-        // Calculate target camera position with smooth transition
-        const idealPosition = new THREE.Vector3(
-            targetPos.x,
-            targetPos.y + adjustedHeight,
-            targetPos.z + adjustedDistance
-        );
+        // Create offset vectors in local space
+        const positionOffset = new THREE.Vector3(0, adjustedHeight, adjustedDistance);
+        const lookAtOffset = new THREE.Vector3(0, params.height * 0.5, -adjustedLookAhead);
         
-        // Add slight offset based on velocity direction for better following
+        // Apply vehicle's rotation to the offset vectors
+        positionOffset.applyQuaternion(targetQuat);
+        lookAtOffset.applyQuaternion(targetQuat);
+        
+        // Calculate ideal position and look-at in world space
+        const idealPosition = new THREE.Vector3().copy(targetPos).add(positionOffset);
+        const lookAtTarget = new THREE.Vector3().copy(targetPos).add(lookAtOffset);
+        
+        // Add velocity-based offset for better following during acceleration
         if (speed > 1) {
-            const velocityDir = velocity.clone().normalize();
-            idealPosition.sub(velocityDir.multiplyScalar(2));
+            const velocityInfluence = Math.min(speed / 10, 1) * 2; // Scale with speed, max 2 units
+            const velocityOffset = velocity.clone().normalize().multiplyScalar(-velocityInfluence);
+            idealPosition.add(velocityOffset);
         }
 
         // Update target position with improved damping
         this.targetPosition.lerp(idealPosition, this.positionDamping * deltaTime * 60);
-        
-        // Calculate look-at position with speed-based adjustment
-        const lookAtTarget = new THREE.Vector3(
-            targetPos.x,
-            targetPos.y + params.height * 0.5,
-            targetPos.z - adjustedLookAhead
-        );
-
-        // Update look-at position with damping
         this.targetLookAt.lerp(lookAtTarget, this.rotationDamping * deltaTime * 60);
 
         // Apply camera position and look-at
@@ -164,7 +162,12 @@ export class CameraSystem extends System {
                     distance: adjustedDistance.toFixed(2),
                     height: adjustedHeight.toFixed(2),
                     lookAhead: adjustedLookAhead.toFixed(2),
-                    position: this.camera.position.toArray().map(v => v.toFixed(2))
+                    position: this.camera.position.toArray().map(v => v.toFixed(2)),
+                    targetRotation: [
+                        meshComponent.mesh.rotation.x.toFixed(2),
+                        meshComponent.mesh.rotation.y.toFixed(2),
+                        meshComponent.mesh.rotation.z.toFixed(2)
+                    ]
                 });
                 this.debugFrameCount = 0;
             }

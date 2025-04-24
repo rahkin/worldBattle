@@ -45,4 +45,15 @@ export class WorldManager {
             throw error;
         }
     }
+
+    async generateWorld() {
+        console.log('[Stage 1] Starting world generation...');
+        const tiles = await this.worldGenerator.generateTiles();
+
+        console.log('[Stage 3] Finalizing world...');
+        await this.worldGenerator.finalize();
+
+        console.log('World generation complete');
+        return true;
+    }
 } 

@@ -46,7 +46,7 @@ A 3D vehicle combat game built with Three.js and CANNON.js.
   - Dynamic day/night cycle:
     - Real-time based lighting
     - Smooth transitions between day and night
-    - Time zone support for future Mapbox integration
+    - Time zone support for location-based features
     - Dynamic sky colors and fog effects
 
 - [x] Power-up system with visual effects and HUD
@@ -161,7 +161,7 @@ A 3D vehicle combat game built with Three.js and CANNON.js.
 - [ ] Minimap with player, power-ups, resupply points
 - [ ] Power-up placement on roads (spatial logic)
 - [ ] Resupply point placement via real POIs
-- [ ] Lighting sync with local time (Mapbox)
+- [ ] Lighting sync with local time
 - [ ] Real-world weather visual overlays
 - [ ] GUI implementation with three-mesh-ui
 

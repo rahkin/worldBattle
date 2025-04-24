@@ -1,6 +1,18 @@
-export class LoadingComponent {
+import { Component } from '../core/Component.js';
+
+export class LoadingComponent extends Component {
     constructor() {
+        super();
+        this.loadingStates = {
+            initialization: { completed: false, message: 'Initializing...' },
+            assets: { completed: false, message: 'Loading assets...' },
+            physics: { completed: false, message: 'Setting up physics...' },
+            world: { completed: false, message: 'Generating world...' },
+            finalization: { completed: false, message: 'Finalizing...' }
+        };
+        this.currentState = 'initialization';
         this.progress = 0;
+        this.error = null;
         this.status = 'idle'; // idle, loading, complete, error
         this.message = '';
         this.totalTiles = 0;

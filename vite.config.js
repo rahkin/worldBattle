@@ -20,10 +20,9 @@ export default defineConfig({
         }
     },
     resolve: {
-        dedupe: ['@mapbox/vector-tile', 'pbf', '@turf/turf'],
         preserveSymlinks: true
     },
     optimizeDeps: {
-        include: ['@mapbox/vector-tile', 'pbf', '@turf/turf']
+        // No specific dependencies to optimize
     }
 }); 

@@ -6,10 +6,8 @@ import { VehicleSystem } from '../systems/VehicleSystem.js';
 import { PhysicsSystem } from '../systems/PhysicsSystem.js';
 import { InputSystem } from '../systems/InputSystem.js';
 import { CameraSystem } from '../systems/CameraSystem.js';
-import { TerrainSystem } from '../systems/TerrainSystem.js';
 import { ResourceSystem } from '../systems/ResourceSystem.js';
 import * as CANNON from 'cannon-es';
-import { TerrainComponent } from '../components/TerrainComponent.js';
 import { VehicleSelection } from '../../ui/VehicleSelection.js';
 
 export class Game {
@@ -192,25 +190,9 @@ export class Game {
             if (!this.scene || !this.camera || !this.renderer) {
                 throw new Error('Failed to initialize scene, camera, or renderer');
             }
-
-            // Create terrain entity
-            const terrainEntity = this.world.createEntity();
-            const terrainComponent = new TerrainComponent();
-            terrainEntity.addComponent(terrainComponent);
-            
-            // Initialize terrain with flat ground
-            for (let x = -50; x <= 50; x++) {
-                for (let z = -50; z <= 50; z++) {
-                    terrainComponent.setHeightAt(new THREE.Vector2(x, z), 0.1);
-                }
-            }
-            
-            this.initEventListeners();
-            
-            // Add to DOM
-            document.body.appendChild(this.renderer.domElement);
         } catch (error) {
-            throw new Error('Failed to initialize WebGL renderer: ' + error.message);
+            console.error('Failed to initialize real environment:', error);
+            throw error;
         }
     }
 

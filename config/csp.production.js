@@ -4,8 +4,8 @@ export const productionCSP = {
     'script-src': ["'self'", "'unsafe-eval'", 'blob:'],
     'worker-src': ["'self'", 'blob:'],
     'style-src': ["'self'", "'unsafe-inline'"],
-    'img-src': ["'self'", 'data:', 'https://api.mapbox.com'],
-    'connect-src': ["'self'", 'https://api.mapbox.com']
+    'img-src': ["'self'", 'data:'],
+    'connect-src': ["'self'"]
 };
 
 // Convert CSP object to string

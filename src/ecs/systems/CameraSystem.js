@@ -2,249 +2,177 @@ import { System } from '../core/System.js';
 import * as THREE from 'three';
 
 export class CameraSystem extends System {
-    constructor(world) {
+    constructor(camera) {
         super();
-        this.world = world;
+        this.camera = camera;
         this.initialized = false;
-        this.camera = null;
         this.target = null;
         this.targetPosition = new THREE.Vector3();
         this.targetLookAt = new THREE.Vector3();
         
-        // Camera parameters
-        this.distance = 15;
-        this.height = 8;
-        this.lookAheadDistance = 20;
-        this.positionDamping = 0.1;
-        this.rotationDamping = 0.05;
+        // Default camera parameters
+        this.baseDistance = 10;
+        this.baseHeight = 5;
+        this.baseLookAheadDistance = 10;
         
-        // Debug settings
+        // Vehicle-specific adjustments
+        this.vehicleTypeParams = {
+            car: { distance: 10, height: 4, lookAhead: 12 },
+            truck: { distance: 12, height: 6, lookAhead: 15 },
+            bike: { distance: 8, height: 3, lookAhead: 10 },
+            drone: { distance: 15, height: 10, lookAhead: 8 }
+        };
+        
+        // Improved damping values
+        this.positionDamping = 0.15;  // Increased for more responsive following
+        this.rotationDamping = 0.08;  // Increased for smoother rotation
+        
+        // Speed-based adjustments
+        this.maxSpeedAdjustment = 1.5;  // Maximum multiplier for speed-based distance
+        this.speedAdjustmentThreshold = 20;  // Speed threshold for adjustments
+        
+        // Debug settings (disabled by default)
         this.debugEnabled = false;
         this.debugFrameCount = 0;
         this.debugInterval = 60;
 
-        // Bind methods to ensure proper 'this' context
+        // Bind methods
         this.init = this.init.bind(this);
         this.setTarget = this.setTarget.bind(this);
         this.update = this.update.bind(this);
 
         console.log('CameraSystem constructed:', {
-            hasWorld: !!this.world,
-            worldSystems: this.world ? Array.from(this.world.systems.keys()) : []
+            hasCamera: !!this.camera,
+            cameraPosition: this.camera ? this.camera.position.toArray() : null
         });
     }
 
-    async init() {
+    async init(world) {
         console.log('CameraSystem init - Starting initialization');
         
-        try {
-            // First check if we're already initialized
-            if (this.initialized && this.camera) {
+        if (this.initialized) {
                 console.log('CameraSystem already initialized');
                 return true;
             }
 
-            // Get SceneManager from world
-            const sceneManager = this.world.getSystem('SceneManager');
-            if (!sceneManager) {
-                throw new Error('SceneManager not found in world systems: ' + 
-                    Array.from(this.world.systems.keys()).join(', '));
-            }
-
-            // Get camera from SceneManager
-            this.camera = sceneManager.getCamera();
             if (!this.camera) {
-                throw new Error('Camera not available from SceneManager');
+            console.error('No camera provided to CameraSystem');
+            return false;
             }
 
-            // Set initial camera position and orientation
-            this.camera.position.set(0, this.height, this.distance);
+        // Set initial camera position
+        this.camera.position.set(0, this.baseHeight, this.baseDistance);
             this.camera.lookAt(0, 0, 0);
             
-            // Initialize target positions with current camera position
-            this.targetPosition.copy(this.camera.position);
-            this.targetLookAt.set(0, 0, 0);
-            
             this.initialized = true;
-            
             console.log('CameraSystem initialized successfully:', {
                 initialized: this.initialized,
                 hasCamera: !!this.camera,
                 position: this.camera.position.toArray(),
-                lookAt: this.targetLookAt.toArray(),
-                distance: this.distance,
-                height: this.height,
-                worldSystems: Array.from(this.world.systems.keys())
+            lookAt: new THREE.Vector3(0, 0, 0).toArray(),
+            distance: this.baseDistance,
+            height: this.baseHeight
             });
-            
             return true;
-        } catch (error) {
-            console.error('CameraSystem init failed with error:', error);
-            this.initialized = false;
-            this.camera = null;
-            return false;
-        }
     }
 
     setTarget(entity) {
+        if (!entity) {
+            console.warn('Invalid target provided to CameraSystem');
+            return false;
+        }
+
+        this.target = entity;
         console.log('Setting camera target:', {
             initialized: this.initialized,
             hasCamera: !!this.camera,
             entityProvided: !!entity,
-            entityId: entity?.id,
-            worldSystems: Array.from(this.world.systems.keys())
+            entityId: entity.id
         });
-
-        if (!this.initialized || !this.camera) {
-            console.error('Cannot set target: CameraSystem not properly initialized:', {
-                initialized: this.initialized,
-                hasCamera: !!this.camera
-            });
-            return false;
-        }
-        
-        if (!entity) {
-            console.warn('Null entity provided to setTarget');
-            return false;
-        }
-
-        const physicsBody = entity.getComponent('PhysicsBody');
-        if (!physicsBody) {
-            console.warn('Target entity has no PhysicsBody component:', {
-                entityId: entity.id,
-                components: Array.from(entity.components.keys())
-            });
-            return false;
-        }
-        
-        this.target = entity;
-        
-        // Initialize camera position relative to target
-        this.updateTargetPositions();
-        
-        if (this.debugEnabled) {
-            console.log('Camera target set successfully:', {
-                entityId: entity.id,
-                position: physicsBody.body.position,
-                cameraPosition: this.camera.position.toArray(),
-                targetPosition: this.targetPosition.toArray()
-            });
-        }
         
         return true;
     }
 
-    updateTargetPositions() {
-        if (!this.target) return;
+    update(deltaTime) {
+        if (!this.initialized || !this.target) return;
 
-        const physicsBody = this.target.getComponent('PhysicsBody');
-        const input = this.target.getComponent('InputComponent');
-        
-        if (!physicsBody) {
-            console.warn('Target has no physics body');
-            return;
-        }
+        // Get target's mesh and physics components
+        const meshComponent = this.target.getComponent('MeshComponent');
+        const physicsComponent = this.target.getComponent('PhysicsBody');
+        if (!meshComponent || !meshComponent.mesh) return;
 
-        // Get current physics state
-        const position = physicsBody.body.position;
-        const quaternion = physicsBody.body.quaternion;
-        const velocity = physicsBody.body.velocity;
+        // Get target's current position and velocity
+        const targetPos = meshComponent.mesh.position;
+        const velocity = physicsComponent ? new THREE.Vector3(
+            physicsComponent.velocity.x,
+            physicsComponent.velocity.y,
+            physicsComponent.velocity.z
+        ) : new THREE.Vector3();
         const speed = velocity.length();
 
-        // Calculate forward vector from quaternion - using negative Z as forward
-        const forward = new THREE.Vector3(0, 0, -1);
-        forward.applyQuaternion(new THREE.Quaternion(
-            quaternion.x, quaternion.y, quaternion.z, quaternion.w
-        ));
-
-        // Adjust for reverse movement
-        const isReversing = input && input.backward;
-        if (isReversing) {
-            forward.multiplyScalar(-1);
-        }
-
-        // Calculate camera target position (behind and above vehicle)
-        this.targetPosition.copy(position)
-            .sub(forward.multiplyScalar(this.distance))
-            .add(new THREE.Vector3(0, this.height, 0));
-
-        // Calculate look-at position (ahead of vehicle)
-        this.targetLookAt.copy(position)
-            .add(forward.normalize().multiplyScalar(this.lookAheadDistance));
-
-        // Debug logging
-        if (this.debugEnabled && ++this.debugFrameCount % this.debugInterval === 0) {
-            console.log('Camera update:', {
-                targetPosition: this.targetPosition.toArray(),
-                targetLookAt: this.targetLookAt.toArray(),
-                vehiclePosition: position.toArray(),
-                vehicleVelocity: velocity.toArray(),
-                speed: speed,
-                isReversing: isReversing,
-                forward: forward.toArray()
-            });
-        }
-    }
-
-    update(deltaTime) {
-        if (!this.initialized || !this.camera) return;
-
-        // Update target positions based on physics
-        this.updateTargetPositions();
-
-        // Smoothly interpolate camera position
-        this.camera.position.lerp(this.targetPosition, this.positionDamping);
+        // Get vehicle type-specific parameters
+        const vehicleComponent = this.target.getComponent('VehicleComponent');
+        const vehicleType = vehicleComponent ? vehicleComponent.type : 'car';
+        const params = this.vehicleTypeParams[vehicleType] || this.vehicleTypeParams.car;
         
-        // Create a temporary vector for current look-at
-        const currentLookAt = new THREE.Vector3();
-        currentLookAt.copy(this.camera.position).add(this.camera.getWorldDirection(new THREE.Vector3()));
+        // Calculate speed-based adjustments
+        const speedRatio = Math.min(speed / this.speedAdjustmentThreshold, 1);
+        const distanceMultiplier = 1 + (speedRatio * (this.maxSpeedAdjustment - 1));
 
-        // Smoothly interpolate look-at position
-        currentLookAt.lerp(this.targetLookAt, this.rotationDamping);
-        this.camera.lookAt(currentLookAt);
-
-        // Update aspect ratio if window is resized
-        if (window.innerWidth > 0 && window.innerHeight > 0) {
-            this.camera.aspect = window.innerWidth / window.innerHeight;
-            this.camera.updateProjectionMatrix();
+        // Calculate adjusted camera parameters
+        const adjustedDistance = params.distance * distanceMultiplier;
+        const adjustedHeight = params.height * (1 + speedRatio * 0.2);
+        const adjustedLookAhead = params.lookAhead * (1 + speedRatio * 0.5);
+        
+        // Calculate target camera position with smooth transition
+        const idealPosition = new THREE.Vector3(
+            targetPos.x,
+            targetPos.y + adjustedHeight,
+            targetPos.z + adjustedDistance
+        );
+        
+        // Add slight offset based on velocity direction for better following
+        if (speed > 1) {
+            const velocityDir = velocity.clone().normalize();
+            idealPosition.sub(velocityDir.multiplyScalar(2));
         }
+
+        // Update target position with improved damping
+        this.targetPosition.lerp(idealPosition, this.positionDamping * deltaTime * 60);
+        
+        // Calculate look-at position with speed-based adjustment
+        const lookAtTarget = new THREE.Vector3(
+            targetPos.x,
+            targetPos.y + params.height * 0.5,
+            targetPos.z - adjustedLookAhead
+        );
+
+        // Update look-at position with damping
+        this.targetLookAt.lerp(lookAtTarget, this.rotationDamping * deltaTime * 60);
+
+        // Apply camera position and look-at
+        this.camera.position.copy(this.targetPosition);
+        this.camera.lookAt(this.targetLookAt);
 
         // Debug logging
-        if (this.debugEnabled && ++this.debugFrameCount % this.debugInterval === 0) {
-            console.log('Camera update:', {
-                position: this.camera.position.toArray(),
-                lookAt: currentLookAt.toArray(),
-                targetPosition: this.targetPosition.toArray(),
-                targetLookAt: this.targetLookAt.toArray()
-            });
+        if (this.debugEnabled) {
+            this.debugFrameCount++;
+            if (this.debugFrameCount >= this.debugInterval) {
+                console.log('Camera Debug:', {
+                    vehicleType,
+                    speed: speed.toFixed(2),
+                    distance: adjustedDistance.toFixed(2),
+                    height: adjustedHeight.toFixed(2),
+                    lookAhead: adjustedLookAhead.toFixed(2),
+                    position: this.camera.position.toArray().map(v => v.toFixed(2))
+                });
+                this.debugFrameCount = 0;
+            }
         }
-    }
-
-    setDistance(distance) {
-        this.distance = distance;
-    }
-
-    setHeight(height) {
-        this.height = height;
-    }
-
-    setDamping(damping) {
-        this.positionDamping = damping;
-    }
-
-    setRotationDamping(damping) {
-        this.rotationDamping = damping;
-    }
-
-    enableDebug(enabled = true) {
-        this.debugEnabled = enabled;
     }
 
     cleanup() {
         this.initialized = false;
-        this.camera = null;
         this.target = null;
-        this.targetPosition.set(0, 0, 0);
-        this.targetLookAt.set(0, 0, 0);
     }
 } 

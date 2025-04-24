@@ -13,6 +13,10 @@ import * as CANNON from 'cannon-es';
 export class VehicleSystem extends System {
     constructor(scene, physicsWorld) {
         super();
+        if (!scene || !physicsWorld) {
+            throw new Error('VehicleSystem requires scene and physicsWorld parameters');
+        }
+        
         this.requiredComponents = ['VehicleComponent', 'PhysicsBody', 'MeshComponent', 'InputComponent'];
         this.scene = scene;
         this.physicsWorld = physicsWorld;
@@ -28,21 +32,45 @@ export class VehicleSystem extends System {
         this.turnSpeed = 2.5;       // Increased for more responsive turning
         this.maxSpeed = 100;        // Increased max speed
         
-        // Debug counter
-        this.debugFrameCount = 0;
+        console.log('VehicleSystem constructed with:', {
+            hasScene: !!this.scene,
+            hasPhysicsWorld: !!this.physicsWorld,
+            maxSteerVal: this.maxSteerVal,
+            normalForce: this.normalForce
+        });
     }
 
     async init(world) {
         if (!world) {
-            console.warn('World not provided to VehicleSystem init');
-            return Promise.resolve();
+            throw new Error('World not provided to VehicleSystem init');
         }
         
         this.world = world;
+        
+        // Create vehicle physics material
+        this.vehicleMaterial = new CANNON.Material('vehicleMaterial');
+        const groundMaterial = new CANNON.Material('groundMaterial');
+        
+        // Create contact material between vehicle and ground
+        const vehicleGroundContact = new CANNON.ContactMaterial(
+            this.vehicleMaterial,
+            groundMaterial,
+            {
+                friction: 0.3,
+                restitution: 0.3,
+                contactEquationStiffness: 1e6,
+                contactEquationRelaxation: 3
+            }
+        );
+        
+        // Add contact material to world
+        this.physicsWorld.addContactMaterial(vehicleGroundContact);
+        
         console.log('VehicleSystem initialized with world:', {
             hasWorld: !!this.world,
-            scene: !!this.scene,
-            physicsWorld: !!this.physicsWorld
+            hasScene: !!this.scene,
+            hasPhysicsWorld: !!this.physicsWorld,
+            hasVehicleMaterial: !!this.vehicleMaterial
         });
         
         return Promise.resolve();
@@ -53,6 +81,14 @@ export class VehicleSystem extends System {
         
         if (!this.world) {
             throw new Error('World not initialized in VehicleSystem');
+        }
+        
+        if (!this.scene) {
+            throw new Error('Scene not available in VehicleSystem');
+        }
+        
+        if (!this.physicsWorld) {
+            throw new Error('PhysicsWorld not available in VehicleSystem');
         }
         
         const entity = this.world.createEntity();
@@ -73,16 +109,12 @@ export class VehicleSystem extends System {
         entity.addComponent(meshComponent);
         
         // Add mesh to scene
-        if (this.scene) {
             this.scene.add(vehicleGroup);
             console.log('Added vehicle mesh to scene:', {
                 type,
                 position: vehicleGroup.position,
                 meshChildren: vehicleGroup.children.length
             });
-        } else {
-            console.error('Scene not available for vehicle mesh');
-        }
 
         // Create vehicle shape
         const shape = this.createVehicleShape(type);
@@ -91,68 +123,68 @@ export class VehicleSystem extends System {
         const body = new CANNON.Body({
             mass: this.getVehicleMass(type),
             shape: shape,
-            position: new CANNON.Vec3(position.x, position.y + 0.5, position.z), // Raised initial position
-            material: new CANNON.Material('vehicleMaterial'),
-            linearDamping: 0.1,     // Reduced for less drag
-            angularDamping: 0.3,    // Increased for better stability
-            allowSleep: false       // Prevent vehicle from "sleeping"
+            position: new CANNON.Vec3(position.x, position.y + 0.5, position.z),
+            material: this.vehicleMaterial,
+            linearDamping: 0.1,
+            angularDamping: 0.3,
+            allowSleep: false
         });
 
-        // Add body to physics world immediately
-        this.physicsWorld.addBody(body);
-
-        // Create vehicle with proper axis configuration
+        // Create vehicle
         const vehicle = new CANNON.RaycastVehicle({
             chassisBody: body,
-            indexRightAxis: 0,    // X axis is right
-            indexUpAxis: 1,       // Y axis is up
-            indexForwardAxis: 2,  // Z axis is forward
+            indexRightAxis: 0,  // x
+            indexUpAxis: 1,     // y
+            indexForwardAxis: 2 // z
         });
 
-        // Add wheels with proper configuration
+        // Set up wheels
         const wheelOptions = {
-            radius: 0.35,           // Increased wheel size
+            radius: 0.5,
             directionLocal: new CANNON.Vec3(0, -1, 0),
-            suspensionStiffness: 35,  // Increased for better response
-            suspensionRestLength: 0.4, // Increased for higher clearance
-            frictionSlip: 2.0,        // Increased for better traction
-            dampingRelaxation: 3.0,   // Increased for better stability
-            dampingCompression: 3.0,  // Increased for better stability
-            maxSuspensionForce: 75000, // Increased for better handling
-            rollInfluence: 0.03,      // Reduced for less body roll
+            suspensionStiffness: 30,
+            suspensionRestLength: 0.3,
+            frictionSlip: 5,
+            dampingRelaxation: 2.3,
+            dampingCompression: 4.4,
+            maxSuspensionForce: 100000,
+            rollInfluence: 0.01,
             axleLocal: new CANNON.Vec3(1, 0, 0),
             chassisConnectionPointLocal: new CANNON.Vec3(1, 0, 1),
-            maxSuspensionTravel: 0.4, // Increased for more suspension travel
-            customSlidingRotationalSpeed: -15, // Reduced for smoother turning
+            maxSuspensionTravel: 0.3,
+            customSlidingRotationalSpeed: -30,
             useCustomSlidingRotationalSpeed: true
         };
 
-        // Adjust wheel positions
-        const FRONT_AXLE = -1.2;  // Moved front wheels forward
-        const REAR_AXLE = 1.2;    // Moved rear wheels back
-        const WHEEL_Y = -0.4;     // Raised wheel position
-        const WHEEL_X = 0.9;      // Widened wheel track
+        // Add wheels
+        const width = shape.halfExtents.x * 0.9; // Bring wheels slightly closer
+        const height = -shape.halfExtents.y;
+        const front = shape.halfExtents.z * 0.6;
 
-        // Front left
-        wheelOptions.chassisConnectionPointLocal.set(-WHEEL_X, WHEEL_Y, FRONT_AXLE);
+        // Front left (Now using -front for Z)
+        wheelOptions.chassisConnectionPointLocal.set(-width, height, -front);
+        wheelOptions.isFrontWheel = true;
         vehicle.addWheel(wheelOptions);
 
-        // Front right
-        wheelOptions.chassisConnectionPointLocal.set(WHEEL_X, WHEEL_Y, FRONT_AXLE);
+        // Front right (Now using -front for Z)
+        wheelOptions.chassisConnectionPointLocal.set(width, height, -front);
+        wheelOptions.isFrontWheel = true;
         vehicle.addWheel(wheelOptions);
 
-        // Rear left
-        wheelOptions.chassisConnectionPointLocal.set(-WHEEL_X, WHEEL_Y, REAR_AXLE);
+        // Rear left (Now using front for Z)
+        wheelOptions.chassisConnectionPointLocal.set(-width, height, front);
+        wheelOptions.isFrontWheel = false;
         vehicle.addWheel(wheelOptions);
 
-        // Rear right
-        wheelOptions.chassisConnectionPointLocal.set(WHEEL_X, WHEEL_Y, REAR_AXLE);
+        // Rear right (Now using front for Z)
+        wheelOptions.chassisConnectionPointLocal.set(width, height, front);
+        wheelOptions.isFrontWheel = false;
         vehicle.addWheel(wheelOptions);
 
-        // Add vehicle to physics world
+        // Add vehicle to world
         vehicle.addToWorld(this.physicsWorld);
 
-        // Create physics body component
+        // Create physics body component with vehicle
         const physicsBody = new PhysicsBody(body, vehicle);
         entity.addComponent(physicsBody);
 
@@ -160,16 +192,19 @@ export class VehicleSystem extends System {
         const inputComponent = new InputComponent();
         entity.addComponent(inputComponent);
 
-        // Store vehicle reference and log debug info
+        // Store vehicle reference
         this.vehicles.set(entity.id, entity);
         
-        console.log('Vehicle components status:', {
+        console.log('Vehicle created successfully:', {
+            entityId: entity.id,
+            type,
+            position,
+            components: {
             hasVehicleComponent: entity.hasComponent('VehicleComponent'),
             hasPhysicsBody: entity.hasComponent('PhysicsBody'),
             hasMeshComponent: entity.hasComponent('MeshComponent'),
-            hasInputComponent: entity.hasComponent('InputComponent'),
-            entityId: entity.id,
-            vehiclesMapSize: this.vehicles.size
+                hasInputComponent: entity.hasComponent('InputComponent')
+            }
         });
 
         return entity;
@@ -272,18 +307,22 @@ export class VehicleSystem extends System {
             clearcoat: 0.3
         });
 
-        // Wheel positions relative to body
+        // Wheel positions relative to body (Swapped front/rear Z positions, tighter X)
+        const visualWidth = dim.width/2 * 0.9; // Match tighter physics setup
         const wheelPositions = [
-            { x: -dim.width/2 + wheelThickness/2, y: -dim.height/2, z: dim.length/3 },    // Front Left
-            { x: dim.width/2 - wheelThickness/2, y: -dim.height/2, z: dim.length/3 },     // Front Right
-            { x: -dim.width/2 + wheelThickness/2, y: -dim.height/2, z: -dim.length/3 },   // Rear Left
-            { x: dim.width/2 - wheelThickness/2, y: -dim.height/2, z: -dim.length/3 }     // Rear Right
+            { x: -visualWidth, y: -dim.height/2, z: -dim.length/3 },    // Front Left
+            { x: visualWidth, y: -dim.height/2, z: -dim.length/3 },     // Front Right
+            { x: -visualWidth, y: -dim.height/2, z: dim.length/3 },   // Rear Left
+            { x: visualWidth, y: -dim.height/2, z: dim.length/3 }     // Rear Right
         ];
 
         wheelPositions.forEach((pos, index) => {
             const wheel = new THREE.Mesh(wheelGeometry, wheelMaterial);
             wheel.position.set(pos.x, pos.y, pos.z);
-            wheel.rotation.z = Math.PI / 2;
+            
+            // Set initial wheel orientation - rotate to make wheels vertical
+            wheel.rotation.z = Math.PI / 2; // This makes the wheel vertical (standing up)
+            
             wheel.castShadow = true;
             wheel.name = `wheel_${index}`;
             group.add(wheel);
@@ -404,13 +443,7 @@ export class VehicleSystem extends System {
             const meshComponent = entity.getComponent('MeshComponent');
 
             if (!input || !physicsBody || !vehicleComponent || !meshComponent) {
-                console.warn('Missing required components for vehicle update:', {
-                    hasInput: !!input,
-                    hasPhysicsBody: !!physicsBody,
-                    hasVehicleComponent: !!vehicleComponent,
-                    hasMeshComponent: !!meshComponent,
-                    entityId: entity.id
-                });
+                console.warn('Missing required components for vehicle update');
                 continue;
             }
 
@@ -472,9 +505,54 @@ export class VehicleSystem extends System {
             });
 
             // Update mesh position and rotation from physics body
-            if (physicsBody.body) {
+            if (physicsBody.body && physicsBody.vehicle) {
                 meshComponent.mesh.position.copy(physicsBody.body.position);
                 meshComponent.mesh.quaternion.copy(physicsBody.body.quaternion);
+
+                // Update wheel positions and rotations
+                const wheels = meshComponent.mesh.children.filter(child => child.name.startsWith('wheel_'));
+                
+                for (let i = 0; i < Math.min(wheels.length, physicsBody.vehicle.wheelInfos.length); i++) {
+                    const wheelInfo = physicsBody.vehicle.wheelInfos[i];
+                    if (wheelInfo) {
+                        physicsBody.vehicle.updateWheelTransform(i);
+                        
+                        const wheelMesh = wheels[i];
+                        const transform = wheelInfo.worldTransform;
+                        
+                        // Convert wheel transform to local space relative to vehicle
+                        const worldPos = new THREE.Vector3(
+                            transform.position.x, 
+                            transform.position.y, 
+                            transform.position.z
+                        );
+                        
+                        const vehicleWorldPos = new THREE.Vector3();
+                        meshComponent.mesh.getWorldPosition(vehicleWorldPos);
+                        worldPos.sub(vehicleWorldPos);
+                        worldPos.applyQuaternion(meshComponent.mesh.quaternion.clone().invert());
+                        
+                        // Apply position
+                        wheelMesh.position.copy(worldPos);
+                        
+                        // --- Rotation Logic --- 
+                        // 1. Reset to initial vertical orientation (Z rotation)
+                        wheelMesh.rotation.set(0, 0, Math.PI / 2);
+                        
+                        // 2. Apply steering rotation (around local X axis - vertical axis after Z rotation)
+                        if (i < 2) { // Front wheels only
+                           // Use rotateX for steering around the new vertical axis
+                           wheelMesh.rotateX(wheelInfo.steering * 0.9); 
+                        }
+                        
+                        // 3. Add wheel rolling rotation (around local Y axis - axle axis after Z rotation)
+                        const speed = physicsBody.body.velocity.length();
+                        // Determine direction based on wheel index (e.g., left vs right)
+                        const rollDirection = (i % 2 === 0) ? 1 : -1; 
+                        // Use rotateY for rolling around the axle
+                        wheelMesh.rotateY(speed * deltaTime * 2 * rollDirection);
+                    }
+                }
             }
         }
     }

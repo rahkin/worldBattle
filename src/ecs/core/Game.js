@@ -49,47 +49,6 @@ export class Game {
         this.entityManager = new EntityManager();
         this.systemManager = new SystemManager();
         this.isInitialized = false;
-        
-        // Initialize world data systems
-        this.worldDataSystem = new WorldDataSystem(this.entityManager, this.systemManager, this.loadingIndicator);
-        this.geometrySystem = new GeometrySystem(this.entityManager, this.systemManager);
-        this.renderSystem = new RendererSystem();
-        
-        this.systemManager.addSystem(this.worldDataSystem);
-        this.systemManager.addSystem(this.geometrySystem);
-        this.systemManager.addSystem(this.renderSystem);
-    }
-
-    // Add a scene to the game
-    addScene(name, scene) {
-        console.log(`Adding scene: ${name}`);
-        if (this.scenes.has(name)) {
-            console.warn(`Scene ${name} already exists, overwriting...`);
-        }
-        this.scenes.set(name, scene);
-        return scene;
-    }
-
-    // Set the active scene
-    setActiveScene(name) {
-        console.log(`Setting active scene to: ${name}`);
-        if (!this.scenes.has(name)) {
-            throw new Error(`Scene ${name} does not exist`);
-        }
-        const scene = this.scenes.get(name);
-        this.activeScene = scene;
-        this.scene = scene;
-        return scene;
-    }
-
-    // Get a scene by name
-    getScene(name) {
-        return this.scenes.get(name);
-    }
-
-    // Get the active scene
-    getActiveScene() {
-        return this.activeScene;
     }
 
     async init() {
@@ -115,6 +74,10 @@ export class Game {
             this.physicsWorld.defaultContactMaterial.friction = 0.8;
             this.physicsWorld.defaultContactMaterial.restitution = 0.1;
 
+            // Create and add world data systems
+            this.worldDataSystem = new WorldDataSystem(this.entityManager, this.systemManager, this.loadingIndicator);
+            await this.systemManager.addSystem(this.worldDataSystem);
+
             // Initialize world data systems
             if (this.loadingIndicator) {
                 await this.loadingIndicator.updateProgress(20, 'Initializing world data...', 'Loading terrain and buildings');
@@ -125,6 +88,10 @@ export class Game {
                 throw new Error('Failed to initialize world data system');
             }
 
+            // Create and add geometry system after world data system is initialized
+            this.geometrySystem = new GeometrySystem(this.entityManager, this.systemManager);
+            await this.systemManager.addSystem(this.geometrySystem);
+
             if (this.loadingIndicator) {
                 await this.loadingIndicator.updateProgress(30, 'Initializing geometry...', 'Processing world data');
             }
@@ -133,6 +100,10 @@ export class Game {
             if (!geometryInitialized) {
                 throw new Error('Failed to initialize geometry system');
             }
+
+            // Create and add render system
+            this.renderSystem = new RendererSystem();
+            await this.systemManager.addSystem(this.renderSystem);
 
             if (this.loadingIndicator) {
                 await this.loadingIndicator.updateProgress(50, 'Setting up scene...', 'Creating environment');
@@ -145,18 +116,18 @@ export class Game {
                 await this.initRealEnvironment();
             }
 
-            // Initialize systems
+            // Initialize remaining systems
             this.inputSystem = new InputSystem();
             this.cameraSystem = new CameraSystem(this.camera);
             this.vehicleSystem = new VehicleSystem(this.scene, this.physicsWorld);
             this.physicsSystem = new PhysicsSystem(this.physicsWorld, this.entityManager);
 
-            // Add systems to manager
-            this.systemManager.addSystem(this.inputSystem);
-            this.systemManager.addSystem(this.cameraSystem);
-            this.systemManager.addSystem(this.vehicleSystem);
-            this.systemManager.addSystem(this.physicsSystem);
-            this.systemManager.addSystem(new ResourceSystem());
+            // Add remaining systems to manager
+            await this.systemManager.addSystem(this.inputSystem);
+            await this.systemManager.addSystem(this.cameraSystem);
+            await this.systemManager.addSystem(this.vehicleSystem);
+            await this.systemManager.addSystem(this.physicsSystem);
+            await this.systemManager.addSystem(new ResourceSystem());
 
             // Initialize vehicle system explicitly
             await this.vehicleSystem.init(this.world);
@@ -404,22 +375,8 @@ export class Game {
         // Use render system to render the scene
         const activeScene = this.getActiveScene();
         if (activeScene) {
-            console.log('Rendering active scene:', {
-                children: activeScene.children.length,
-                camera: {
-                    position: this.camera.position.toArray(),
-                    rotation: this.camera.rotation.toArray()
-                }
-            });
             this.renderSystem.render(activeScene, this.camera);
         } else {
-            console.log('Rendering default scene:', {
-                children: this.scene.children.length,
-                camera: {
-                    position: this.camera.position.toArray(),
-                    rotation: this.camera.rotation.toArray()
-                }
-            });
             this.renderSystem.render(this.scene, this.camera);
         }
     }
@@ -546,7 +503,7 @@ export class Game {
         console.log('Selecting vehicle:', vehicleType);
         try {
             // Create spawn position slightly above ground
-            const spawnPosition = new THREE.Vector3(0, 5, 0); // Increased height to avoid terrain intersection
+            const spawnPosition = new THREE.Vector3(0, 5, 0); // 5 meters above ground in real-world units
             
             // Spawn the vehicle
             const vehicle = await this.vehicleSystem.createVehicle(vehicleType, spawnPosition);
@@ -591,5 +548,37 @@ export class Game {
             console.error('Error selecting vehicle:', error);
             return null;
         }
+    }
+
+    // Add a scene to the game
+    addScene(name, scene) {
+        console.log(`Adding scene: ${name}`);
+        if (this.scenes.has(name)) {
+            console.warn(`Scene ${name} already exists, overwriting...`);
+        }
+        this.scenes.set(name, scene);
+        return scene;
+    }
+
+    // Set the active scene
+    setActiveScene(name) {
+        console.log(`Setting active scene to: ${name}`);
+        if (!this.scenes.has(name)) {
+            throw new Error(`Scene ${name} does not exist`);
+        }
+        const scene = this.scenes.get(name);
+        this.activeScene = scene;
+        this.scene = scene;
+        return scene;
+    }
+
+    // Get a scene by name
+    getScene(name) {
+        return this.scenes.get(name);
+    }
+
+    // Get the active scene
+    getActiveScene() {
+        return this.activeScene;
     }
 } 

@@ -11,16 +11,16 @@ export class CameraSystem extends System {
         this.targetLookAt = new THREE.Vector3();
         
         // Default camera parameters
-        this.baseDistance = 10;
-        this.baseHeight = 5;
-        this.baseLookAheadDistance = 10;
+        this.baseDistance = 20;
+        this.baseHeight = 10;
+        this.baseLookAheadDistance = 20;
         
         // Vehicle-specific adjustments
         this.vehicleTypeParams = {
-            car: { distance: 10, height: 4, lookAhead: 12 },
-            truck: { distance: 12, height: 6, lookAhead: 15 },
-            bike: { distance: 8, height: 3, lookAhead: 10 },
-            drone: { distance: 15, height: 10, lookAhead: 8 }
+            car: { distance: 20, height: 8, lookAhead: 24 },
+            truck: { distance: 24, height: 12, lookAhead: 30 },
+            bike: { distance: 16, height: 6, lookAhead: 20 },
+            drone: { distance: 30, height: 20, lookAhead: 16 }
         };
         
         // Improved damping values
@@ -47,32 +47,42 @@ export class CameraSystem extends System {
         });
     }
 
-    async init(world) {
+    async init() {
         console.log('CameraSystem init - Starting initialization');
-        
-        if (this.initialized) {
-                console.log('CameraSystem already initialized');
-                return true;
-            }
 
             if (!this.camera) {
-            console.error('No camera provided to CameraSystem');
-            return false;
+            this.camera = new THREE.PerspectiveCamera(
+                75, // Field of view
+                window.innerWidth / window.innerHeight,
+                0.1,
+                10000 // Increased far plane to see more of the scene
+            );
             }
 
-        // Set initial camera position
-        this.camera.position.set(0, this.baseHeight, this.baseDistance);
+        // Position camera higher and further back for better overview
+        this.camera.position.set(0, 500, 1000);
             this.camera.lookAt(0, 0, 0);
+        
+        // Store initial values
+        this.initialPosition = this.camera.position.clone();
+        this.initialTarget = new THREE.Vector3(0, 0, 0);
+        
+        // Set default follow parameters
+        this.followDistance = 20;
+        this.followHeight = 10;
+        this.followLerp = 0.1;
             
             this.initialized = true;
+        
             console.log('CameraSystem initialized successfully:', {
                 initialized: this.initialized,
                 hasCamera: !!this.camera,
                 position: this.camera.position.toArray(),
-            lookAt: new THREE.Vector3(0, 0, 0).toArray(),
-            distance: this.baseDistance,
-            height: this.baseHeight
+            lookAt: this.initialTarget.toArray(),
+            distance: this.followDistance,
+            height: this.followHeight
             });
+        
             return true;
     }
 

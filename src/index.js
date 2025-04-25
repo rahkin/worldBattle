@@ -1,56 +1,33 @@
-import { Game } from './ecs/core/Game.js';
-
-let game = null;
+import { Game } from './ecs/core/Game';
+import { LoadingIndicator } from './ui/LoadingIndicator';
+import { VehicleSelector } from './ui/VehicleSelector';
 
 async function init() {
-    try {
-        // Cleanup existing game if it exists
-        if (game) {
-            await game.cleanup();
-            game = null;
-        }
+    // Create a single loading indicator instance
+    const loadingIndicator = new LoadingIndicator();
+    
+    // Initialize game with the loading indicator
+    const game = new Game({
+        loadingIndicator: loadingIndicator
+    });
 
-        // Create and initialize new game
-        game = new Game();
-        await game.init();
-        
-        console.log('Game initialized successfully');
-        
-        // Hide loading screen
-        const loadingScreen = document.getElementById('loading-screen');
-        if (loadingScreen) {
-            loadingScreen.style.display = 'none';
-        }
-    } catch (error) {
-        console.error('Failed to initialize game:', error);
-        
-        // Show error on loading screen
-        const loadingScreen = document.getElementById('loading-screen');
-        if (loadingScreen) {
-            const loadingText = loadingScreen.querySelector('.loading-text');
-            if (loadingText) {
-                loadingText.textContent = 'Failed to load game. Please refresh the page.';
-            }
-        }
-
-        // Cleanup on error
-        if (game) {
-            try {
-                await game.cleanup();
-            } catch (cleanupError) {
-                console.error('Failed to cleanup after initialization error:', cleanupError);
-            }
-            game = null;
-        }
+    // Initialize game
+    const initialized = await game.init();
+    if (!initialized) {
+        console.error('Failed to initialize game');
+        return;
     }
+
+    // Hide loading indicator after initialization
+    await loadingIndicator.hide();
+
+    // Initialize vehicle selector with the same loading indicator
+    const vehicleSelector = new VehicleSelector(game, loadingIndicator);
+    vehicleSelector.show();
 }
 
-// Initialize game when page loads
-window.addEventListener('DOMContentLoaded', () => {
-    init().catch(error => {
-        console.error('Unhandled initialization error:', error);
-    });
-});
+// Start initialization when the page loads
+window.addEventListener('load', init);
 
 // Add refresh handler
 window.addEventListener('keydown', (event) => {
@@ -58,6 +35,9 @@ window.addEventListener('keydown', (event) => {
         event.preventDefault();
         init().catch(error => {
             console.error('Unhandled refresh error:', error);
+            if (loadingIndicator) {
+                loadingIndicator.updateProgress(100, 'Error', `Refresh error: ${error.message}`);
+            }
         });
     }
 });
@@ -65,6 +45,9 @@ window.addEventListener('keydown', (event) => {
 // Add error handler for unhandled errors
 window.addEventListener('error', async (event) => {
     console.error('Unhandled error:', event.error);
+    if (loadingIndicator) {
+        loadingIndicator.updateProgress(100, 'Error', `Unhandled error: ${event.error.message}`);
+    }
     if (game) {
         try {
             await game.cleanup();

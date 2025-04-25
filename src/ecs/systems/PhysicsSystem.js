@@ -3,12 +3,13 @@ import { PhysicsBody } from '../components/PhysicsBody.js';
 import * as CANNON from 'cannon-es';
 
 export class PhysicsSystem extends System {
-    constructor() {
+    constructor(physicsWorld, entityManager) {
         super();
         this.requiredComponents = [PhysicsBody];
+        this.entityManager = entityManager;
         
-        // Initialize CANNON.js physics world with increased gravity for better vehicle control
-        this.physicsWorld = new CANNON.World({
+        // Use provided physics world or create new one
+        this.physicsWorld = physicsWorld || new CANNON.World({
             gravity: new CANNON.Vec3(0, -20, 0)  // Increased gravity
         });
         
@@ -134,10 +135,10 @@ export class PhysicsSystem extends System {
         }
 
         // Update all physics bodies
-        const entities = this.world.getEntitiesWithComponents(this.requiredComponents);
+        const entities = this.entityManager.getEntitiesByComponent('PhysicsBody');
 
         for (const entity of entities) {
-            const physicsBody = entity.getComponent(PhysicsBody);
+            const physicsBody = entity.getComponent('PhysicsBody');
             if (!physicsBody || !physicsBody.body) continue;
 
             // Update component state from physics body

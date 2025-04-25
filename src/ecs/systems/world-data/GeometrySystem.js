@@ -115,7 +115,7 @@ export class GeometrySystem {
 
         // Update vertices based on height data
         const vertices = geometry.attributes.position.array;
-        const heightScale = 10; // Increased scale to make elevation changes more visible
+        const heightScale = 0.1; // Reduce scale to lower overall height
         
         // Track actual min/max heights
         let actualMinHeight = Infinity;
@@ -131,18 +131,13 @@ export class GeometrySystem {
             actualMaxHeight = Math.max(actualMaxHeight, height);
         }
 
-        console.log('Height range:', {
+        console.log('Raw Height range before scaling:', {
             min: actualMinHeight,
             max: actualMaxHeight,
             delta: actualMaxHeight - actualMinHeight,
-            heightScale: heightScale,
             sampleHeights: heightData.slice(0, 10),
             totalPoints: heightData.length
         });
-
-        // Create color attribute for vertex coloring based on height
-        const colors = new Float32Array(vertices.length);
-        geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
 
         // Update vertices with height data and normalize to ground level
         for (let i = 0; i < resolution.y; i++) {
@@ -156,31 +151,25 @@ export class GeometrySystem {
                     continue;
                 }
 
-                // Set height directly from the scaled height data without negating
-                const height = heightData[heightIndex] * heightScale;
-                vertices[vertexIndex + 1] = height; // Y is up after rotation
-                row.push(height); // Store the actual height for physics
-
-                // Calculate color based on height (green to brown gradient)
-                const heightFactor = (height - actualMinHeight) / (actualMaxHeight - actualMinHeight);
-                colors[vertexIndex] = 0.24 + heightFactor * 0.1;     // R: slight red variation
-                colors[vertexIndex + 1] = 0.56 - heightFactor * 0.3; // G: decrease green with height
-                colors[vertexIndex + 2] = 0.37 - heightFactor * 0.2; // B: decrease blue with height
+                // Scale and normalize height
+                const rawHeight = heightData[heightIndex] * heightScale;
+                const normalizedHeight = rawHeight - actualMinHeight;
+                vertices[vertexIndex + 1] = -normalizedHeight; // Negate for correct orientation
+                row.push(normalizedHeight);
             }
             heightMap.push(row);
         }
 
         geometry.computeVertexNormals();
         geometry.attributes.position.needsUpdate = true;
-        geometry.attributes.color.needsUpdate = true;
 
         // Create mesh with proper material
         const mesh = new THREE.Mesh(geometry, this.materials.terrain);
         
-        // Position the mesh at the center
+        // Position the mesh at the center and below ground level
         mesh.position.set(
             centerLocal.x,
-            0, // Place at ground level
+            -10, // Place mesh below ground level
             centerLocal.z
         );
         
@@ -202,13 +191,21 @@ export class GeometrySystem {
         // Position the physics body to match the mesh
         body.position.set(
             mesh.position.x,
-            -(actualMaxHeight - actualMinHeight) / 2, // Offset to align with visual mesh
+            -10, // Match mesh position below ground
             mesh.position.z
         );
-        
-        // Rotate to align with the visual mesh
-        body.quaternion.setFromEuler(Math.PI / 2, 0, 0);
-        
+        body.quaternion.setFromEuler(-Math.PI / 2, 0, 0); // Align with mesh
+
+        console.log('Terrain setup details:', {
+            meshPosition: mesh.position.toArray(),
+            physicsPosition: body.position.toArray(),
+            heightRange: {
+                min: actualMinHeight,
+                max: actualMaxHeight,
+                delta: actualMaxHeight - actualMinHeight
+            }
+        });
+
         terrainComponent.physicsBody = body;
 
         // Add debug visualization
